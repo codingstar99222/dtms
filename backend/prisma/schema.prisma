@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  role          Role      @default(MEMBER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  reports       Report[]
+  blogPosts     BlogPost[]
+  assignedTasks Task[]    @relation("AssignedTasks")
+  createdTasks  Task[]    @relation("CreatedTasks")
+  timeEntries   TimeEntry[]
+  transactions  Transaction[]
+}
+
+model Report {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  date        DateTime
+  content     String        // Removed @db.Text
+  status      ReportStatus  @default(PENDING)
+  reason      String?       // Removed @db.Text
+  submittedAt DateTime      @default(now())
+  approvedAt  DateTime?
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@index([status])
+}
+
+model BlogPost {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id])
+  title       String
+  content     String         // Removed @db.Text
+  category    BlogCategory
+  tags        String         @default("[]")
+  url         String?
+  codeSnippet String?        // Removed @db.Text
+  views       Int            @default(0)
+  publishedAt DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  
+  @@index([userId])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String       // Removed @db.Text
+  status      TaskStatus   @default(CREATED)
+  priority    Priority     @default(MEDIUM)
+  assigneeId  String?
+  assignee    User?        @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  creatorId   String
+  creator     User         @relation("CreatedTasks", fields: [creatorId], references: [id])
+  client      String?
+  rate        Float?
+  budget      Float?
+  hoursWorked Float?       @default(0)
+  createdAt   DateTime     @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  deadline    DateTime?
+  
+  // Added opposite relations
+  timeEntries TimeEntry[]
+  transactions Transaction[]
+  
+  @@index([assigneeId])
+  @@index([status])
+  @@index([creatorId])
+  @@index([deadline])
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  taskId      String?
+  task        Task?    @relation(fields: [taskId], references: [id])
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startTime])
+  @@index([taskId])
+}
+
+model Transaction {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  type        TransactionType
+  amount      Float
+  description String
+  taskId      String?
+  task        Task?         @relation(fields: [taskId], references: [id])
+  timestamp   DateTime      @default(now())
+  
+  @@index([userId])
+  @@index([timestamp])
+  @@index([taskId])
+  @@index([type])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BlogCategory {
+  TUTORIAL
+  TIP
+  RESOURCE
+  CODE_SNIPPET
+  EXPERIENCE
+}
+
+enum TaskStatus {
+  CREATED
+  ASSIGNED
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
