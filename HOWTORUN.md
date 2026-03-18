@@ -39,9 +39,9 @@ Enter admin password (min 6 chars): <Your password>
 Enter admin name: <Admin's name>
 ```
 
-## 4. Create the env files
+## 4. Create .env files
 
-Copy the .env.example files both in backend and frontend and rename as .env, and set the values on your demand
+Copy .env.example files in both backend and frontend and rename to .env, and change values as you want
 
 ## 5. Run development server
 

@@ -1,6 +1,6 @@
 # DTMS - Developer Team Management System
 
-![CI Status](https://github.com/yourusername/dtms/actions/workflows/ci.yml/badge.svg)
+[![DTMS CI Pipeline](https://github.com/codingstar99222/dtms/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/codingstar99222/dtms/actions/workflows/ci.yml)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
