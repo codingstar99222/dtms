@@ -39,7 +39,11 @@ Enter admin password (min 6 chars): <Your password>
 Enter admin name: <Admin's name>
 ```
 
-## 4. Run development server
+## 4. Create the env files
+
+Copy the .env.example files both in backend and frontend and rename as .env, and set the values on your demand
+
+## 5. Run development server
 
 ```bash
 # on the root of the repository
