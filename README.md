@@ -1,6 +1,6 @@
 # DTMS - Developer Team Management System
 
-![CI Status](https://github.com/yourusername/dtms/actions/workflows/ci.yml/badge.svg)
+[![DTMS CI Pipeline](https://github.com/codingstar99222/dtms/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/codingstar99222/dtms/actions/workflows/ci.yml)
 ![Backend Coverage](https://img.shields.io/badge/coverage-85%25-green)
 ![Frontend Coverage](https://img.shields.io/badge/coverage-80%25-yellow)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
