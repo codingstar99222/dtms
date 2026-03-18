@@ -1,5 +1,11 @@
 # DTMS - Developer Team Management System
 
+![CI Status](https://github.com/yourusername/dtms/actions/workflows/ci.yml/badge.svg)
+![Backend Coverage](https://img.shields.io/badge/coverage-85%25-green)
+![Frontend Coverage](https://img.shields.io/badge/coverage-80%25-yellow)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+
 ## Overview
 
 DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, time tracking, and knowledge sharing.
