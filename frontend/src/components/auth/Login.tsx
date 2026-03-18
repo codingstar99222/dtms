@@ -1,16 +1,7 @@
 // frontend/src/components/auth/Login.tsx
 import { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import {
-  Container,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  Paper,
-  Alert,
-  Link,
-} from '@mui/material';
+import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
+import { Container, Box, Typography, TextField, Button, Paper, Alert, Link } from '@mui/material';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -29,6 +20,8 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   const [error, setError] = useState('');
+  const location = useLocation();
+  const pendingMessage = location.state?.message;
 
   const {
     register,
@@ -79,6 +72,11 @@ const Login = () => {
           {error && (
             <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
               {error}
+            </Alert>
+          )}
+          {pendingMessage && (
+            <Alert severity="info" sx={{ width: '100%', mb: 2 }}>
+              {pendingMessage}
             </Alert>
           )}
 

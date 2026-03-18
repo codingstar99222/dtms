@@ -1,8 +1,6 @@
 # DTMS - Developer Team Management System
 
 ![CI Status](https://github.com/yourusername/dtms/actions/workflows/ci.yml/badge.svg)
-![Backend Coverage](https://img.shields.io/badge/coverage-85%25-green)
-![Frontend Coverage](https://img.shields.io/badge/coverage-80%25-yellow)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
@@ -193,11 +191,6 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 - Backend: Node.js (port 3000)
 - Frontend: Vite preview server (port 80)
-
-### Setup
-
-- Start via shell or batch scripts
-- Optional auto-start via cron or task scheduler
 
 ### Backup Strategy
 

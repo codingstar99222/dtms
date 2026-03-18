@@ -46,6 +46,16 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  // Add these for profile updates
+  @IsString()
+  @IsOptional()
+  currentPassword?: string;
+
+  @IsString()
+  @MinLength(6)
+  @IsOptional()
+  newPassword?: string;
 }
 
 export class UserResponseDto {

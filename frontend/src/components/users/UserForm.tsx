@@ -23,8 +23,10 @@ import { type User } from '../../types';
 
 const userSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  email: z.email('Invalid email address'),
+  password: z
+    .union([z.string().min(6, 'Password must be at least 6 characters'), z.undefined()])
+    .optional(),
   role: z.enum(['ADMIN', 'MEMBER']),
   isActive: z.boolean().optional(),
 });
@@ -54,13 +56,11 @@ const UserForm = ({ open, onClose, onSubmit, user }: UserFormProps) => {
       isActive: true,
     },
   });
-
   useEffect(() => {
     if (user) {
       reset({
         name: user.name,
         email: user.email,
-        password: '',
         role: user.role,
         isActive: user.isActive,
       });
@@ -77,9 +77,7 @@ const UserForm = ({ open, onClose, onSubmit, user }: UserFormProps) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {user ? 'Edit User' : 'Create New User'}
-      </DialogTitle>
+      <DialogTitle>{user ? 'Edit User' : 'Create New User'}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -108,6 +106,7 @@ const UserForm = ({ open, onClose, onSubmit, user }: UserFormProps) => {
                   fullWidth
                   error={!!errors.email}
                   helperText={errors.email?.message}
+                  autoComplete="email"
                 />
               )}
             />
@@ -123,6 +122,13 @@ const UserForm = ({ open, onClose, onSubmit, user }: UserFormProps) => {
                   fullWidth
                   error={!!errors.password}
                   helperText={errors.password?.message}
+                  required={!user}
+                  slotProps={{
+                    inputLabel: {
+                      required: !user,
+                      shrink: true,
+                    },
+                  }}
                 />
               )}
             />
@@ -168,11 +174,7 @@ const UserForm = ({ open, onClose, onSubmit, user }: UserFormProps) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" variant="contained" disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : user ? 'Update' : 'Create'}
           </Button>
         </DialogActions>
