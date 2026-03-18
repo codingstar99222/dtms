@@ -16,6 +16,10 @@ npm install
 # Install frontend dependencies
 cd frontend
 npm install
+
+# Install global dependencies
+# on the root directory
+npm install
 ```
 
 ## 3. Install database
