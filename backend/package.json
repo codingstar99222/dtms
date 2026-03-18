@@ -19,7 +19,10 @@
     "test:cov": "jest --coverage",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:seed": "ts-node prisma/seed.ts",
+    "db:generate": "prisma generate",
+    "db:setup": "prisma generate && ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -21,6 +21,7 @@ import Tasks from './pages/Tasks';
 import Blog from './pages/Blog';
 import Financial from './pages/Financial';
 import TimeTracking from './pages/TimeTracking';
+import Profile from './pages/Profile';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,7 +64,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            
+
             <Route element={<PrivateRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -74,6 +75,7 @@ function App() {
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/financial" element={<Financial />} />
                 <Route path="/time-tracking" element={<TimeTracking />} />
+                <Route path="/profile" element={<Profile />} />
               </Route>
             </Route>
           </Routes>

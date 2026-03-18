@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto/user.dto';
@@ -72,42 +73,38 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Prepare update data with proper typing
-    const updateData: {
-      email?: string;
-      password?: string;
-      name?: string;
-      role?: any;
-      isActive?: boolean;
-    } = {};
+    // Handle password change
+    if (updateUserDto.currentPassword && updateUserDto.newPassword) {
+      const isPasswordValid = await bcrypt.compare(
+        updateUserDto.currentPassword,
+        user.password,
+      );
 
-    if (updateUserDto.email !== undefined) {
-      // Check email uniqueness if changed
-      if (updateUserDto.email !== user.email) {
-        const existingUser = await this.prisma.user.findUnique({
-          where: { email: updateUserDto.email },
-        });
-        if (existingUser) {
-          throw new ConflictException('Email already in use');
-        }
+      if (!isPasswordValid) {
+        throw new BadRequestException('Current password is incorrect');
       }
-      updateData.email = updateUserDto.email;
+
+      // Set the new password
+      updateUserDto.password = await bcrypt.hash(updateUserDto.newPassword, 10);
     }
 
-    if (updateUserDto.password) {
-      updateData.password = await bcrypt.hash(updateUserDto.password, 10);
-    }
+    // Remove temporary fields with proper typing
+    const { currentPassword, newPassword, ...updateData } =
+      updateUserDto as UpdateUserDto & {
+        currentPassword?: string;
+        newPassword?: string;
+      };
+    void currentPassword;
+    void newPassword;
 
-    if (updateUserDto.name !== undefined) {
-      updateData.name = updateUserDto.name;
-    }
-
-    if (updateUserDto.role !== undefined) {
-      updateData.role = updateUserDto.role;
-    }
-
-    if (updateUserDto.isActive !== undefined) {
-      updateData.isActive = updateUserDto.isActive;
+    // Check email uniqueness if changed
+    if (updateData.email && updateData.email !== user.email) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { email: updateData.email },
+      });
+      if (existingUser) {
+        throw new ConflictException('Email already in use');
+      }
     }
 
     const updatedUser = await this.prisma.user.update({

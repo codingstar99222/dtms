@@ -20,6 +20,7 @@ import {
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
+import { Link as RouterLink } from 'react-router-dom';
 
 const Navbar = () => {
   const { user, logout } = useAuthStore();
@@ -102,6 +103,9 @@ const Navbar = () => {
               <Typography variant="caption" color="text.secondary">
                 Role: {user?.role}
               </Typography>
+            </MenuItem>
+            <MenuItem component={RouterLink} to="/profile">
+              Profile
             </MenuItem>
             <MenuItem onClick={handleLogout}>Logout</MenuItem>
           </Menu>

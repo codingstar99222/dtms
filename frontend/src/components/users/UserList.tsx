@@ -23,6 +23,8 @@ import {
   Block as BlockIcon,
   CheckCircle as ActiveIcon,
   Search as SearchIcon,
+  CheckCircleOutline as ApproveIcon, // Added
+  Cancel as RejectIcon, // Added
 } from '@mui/icons-material';
 import type { User } from '../../types';
 import { formatDate } from '../../utils/formatters';
@@ -32,22 +34,29 @@ interface UserListProps {
   onEdit: (user: User) => void;
   onDelete: (userId: string) => void;
   onToggleActive: (userId: string, currentStatus: boolean) => void;
+  onApprove?: (userId: string) => void; // Added
+  onReject?: (userId: string) => void; // Added
 }
 
-const UserList = ({ users, onEdit, onDelete, onToggleActive }: UserListProps) => {
+const UserList = ({
+  users,
+  onEdit,
+  onDelete,
+  onToggleActive,
+  onApprove,
+  onReject,
+}: UserListProps) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const paginatedUsers = filteredUsers.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  const paginatedUsers = filteredUsers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handleChangePage = (_: unknown, newPage: number) => {
     setPage(newPage);
@@ -107,34 +116,61 @@ const UserList = ({ users, onEdit, onDelete, onToggleActive }: UserListProps) =>
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={user.isActive ? 'Active' : 'Inactive'}
-                    color={user.isActive ? 'success' : 'error'}
+                    label={user.isActive ? 'Active' : 'Pending'}
+                    color={user.isActive ? 'success' : 'warning'}
                     size="small"
                   />
                 </TableCell>
                 <TableCell>{formatDate(user.createdAt)}</TableCell>
                 <TableCell align="center">
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                    <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => onEdit(user)} color="primary">
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title={user.isActive ? 'Deactivate' : 'Activate'}>
-                      <IconButton
-                        size="small"
-                        onClick={() => onToggleActive(user.id, user.isActive)}
-                        color={user.isActive ? 'warning' : 'success'}
-                      >
-                        {user.isActive ? <BlockIcon /> : <ActiveIcon />}
-                      </IconButton>
-                    </Tooltip>
+                    {/* Show approve/reject for pending members */}
+                    {!user.isActive && user.role !== 'ADMIN' && (
+                      <>
+                        <Tooltip title="Approve Member">
+                          <IconButton
+                            size="small"
+                            onClick={() => onApprove?.(user.id)}
+                            color="success"
+                          >
+                            <ApproveIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reject Member">
+                          <IconButton
+                            size="small"
+                            onClick={() => onReject?.(user.id)}
+                            color="error"
+                          >
+                            <RejectIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+
+                    {/* Show edit/activate/delete for active users */}
+                    {user.isActive && (
+                      <>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => onEdit(user)} color="primary">
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={user.isActive ? 'Deactivate' : 'Activate'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => onToggleActive(user.id, user.isActive)}
+                            color={user.isActive ? 'warning' : 'success'}
+                          >
+                            {user.isActive ? <BlockIcon /> : <ActiveIcon />}
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+
+                    {/* Delete always available for admins */}
                     <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        onClick={() => onDelete(user.id)}
-                        color="error"
-                      >
+                      <IconButton size="small" onClick={() => onDelete(user.id)} color="error">
                         <DeleteIcon />
                       </IconButton>
                     </Tooltip>
@@ -145,9 +181,7 @@ const UserList = ({ users, onEdit, onDelete, onToggleActive }: UserListProps) =>
             {paginatedUsers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                  <Typography color="text.secondary">
-                    No users found
-                  </Typography>
+                  <Typography color="text.secondary">No users found</Typography>
                 </TableCell>
               </TableRow>
             )}
