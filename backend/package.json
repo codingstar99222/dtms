@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit",
     "db:seed": "ts-node prisma/seed.ts",
     "db:generate": "prisma generate",
-    "db:setup": "prisma generate && ts-node prisma/seed.ts"
+    "db:setup": "prisma generate && prisma db push && ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
