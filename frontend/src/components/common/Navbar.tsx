@@ -1,4 +1,5 @@
 // frontend/src/components/common/Navbar.tsx
+import { Link as RouterLink } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -20,7 +21,6 @@ import {
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
-import { Link as RouterLink } from 'react-router-dom';
 
 const Navbar = () => {
   const { user, logout } = useAuthStore();
@@ -54,7 +54,7 @@ const Navbar = () => {
         </IconButton>
 
         <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-          DTMS
+          DTMS {user && `- ${user.role}`}
         </Typography>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -104,7 +104,7 @@ const Navbar = () => {
                 Role: {user?.role}
               </Typography>
             </MenuItem>
-            <MenuItem component={RouterLink} to="/profile">
+            <MenuItem component={RouterLink} to="/profile" onClick={handleClose}>
               Profile
             </MenuItem>
             <MenuItem onClick={handleLogout}>Logout</MenuItem>
