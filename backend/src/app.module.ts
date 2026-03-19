@@ -14,6 +14,7 @@ import { TimeTrackingModule } from './modules/time-tracking/time-tracking.module
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { TimeModule } from './common/services/time.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { RolesGuard } from './common/guards/roles.guard';
       },
     ]),
     PrismaModule,
+    TimeModule,
     AuthModule,
     UsersModule,
     ReportsModule,

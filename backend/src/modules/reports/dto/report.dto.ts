@@ -33,7 +33,7 @@ export class ReportResponseDto {
   id: string;
   userId: string;
   userName: string;
-  date: Date;
+  date: string; // Changed from Date to string
   content: string;
   status: ReportStatus;
   reason?: string;
@@ -44,8 +44,9 @@ export class ReportResponseDto {
   canEdit: boolean;
   canDelete: boolean;
 }
+
 export class MissingReportDto {
-  date: Date;
+  date: string; // YYYY-MM-DD
   dayOfWeek: string;
   isMissing: boolean;
 }

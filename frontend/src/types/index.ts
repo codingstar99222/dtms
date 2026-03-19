@@ -35,7 +35,7 @@ export interface Report {
   id: string;
   userId: string;
   userName: string;
-  date: string;
+  date: string; // Already YYYY-MM-DD string
   content: string;
   status: ReportStatus;
   reason?: string;
@@ -73,7 +73,7 @@ export interface Task {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
-  deadline?: string;
+  deadline?: string; // Now string (YYYY-MM-DD), not Date
 }
 
 // Blog

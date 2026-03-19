@@ -92,9 +92,7 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        {task ? 'Edit Task' : 'Create New Task'}
-      </DialogTitle>
+      <DialogTitle>{task ? 'Edit Task' : 'Create New Task'}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -158,8 +156,10 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
                       <InputLabel>Assign To</InputLabel>
                       <Select {...field} label="Assign To">
                         <MenuItem value="">Unassigned</MenuItem>
-                        {users.map(user => (
-                          <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+                        {users.map((user) => (
+                          <MenuItem key={user.id} value={user.id}>
+                            {user.name}
+                          </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
@@ -194,13 +194,16 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
                       <DatePicker
                         label="Deadline"
                         value={field.value || null}
-                        onChange={(date) => field.onChange(date)}
-                        slotProps={{
-                          textField: {
-                            fullWidth: true,
-                            error: !!errors.deadline,
-                            helperText: errors.deadline?.message,
-                          },
+                        onChange={(date) => {
+                          if (date) {
+                            // Convert back to YYYY-MM-DD string for backend
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            field.onChange(`${year}-${month}-${day}`);
+                          } else {
+                            field.onChange(undefined);
+                          }
                         }}
                       />
                     )}
@@ -221,7 +224,9 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
                       type="number"
                       fullWidth
                       value={field.value || ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) =>
+                        field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
                       error={!!errors.rate}
                       helperText={errors.rate?.message}
                       InputProps={{ inputProps: { min: 0, step: 0.01 } }}
@@ -241,7 +246,9 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
                       type="number"
                       fullWidth
                       value={field.value || ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) =>
+                        field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
                       error={!!errors.budget}
                       helperText={errors.budget?.message}
                       InputProps={{ inputProps: { min: 0, step: 0.01 } }}
@@ -254,11 +261,7 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" variant="contained" disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : task ? 'Update' : 'Create'}
           </Button>
         </DialogActions>

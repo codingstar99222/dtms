@@ -17,6 +17,20 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Report } from '../../types';
 
+// Helper to convert Date to YYYY-MM-DD string
+const dateToString = (date: Date): string => {
+  const year = date.getUTCFullYear(); // Use UTC
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper to convert YYYY-MM-DD string to Date
+const stringToDate = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 const reportSchema = z.object({
   date: z.date({
     message: 'Please select a valid date',
@@ -29,7 +43,7 @@ type ReportFormData = z.infer<typeof reportSchema>;
 interface ReportFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: ReportFormData) => Promise<void>;
+  onSubmit: (data: { date: string; content: string }) => Promise<void>; // Changed to expect string date
   report?: Report | null;
 }
 
@@ -50,7 +64,7 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
   useEffect(() => {
     if (report) {
       reset({
-        date: new Date(report.date),
+        date: stringToDate(report.date),
         content: report.content,
       });
     } else {
@@ -61,10 +75,18 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
     }
   }, [report, reset]);
 
+  // Convert Date to string before submitting
+  const handleFormSubmit = (data: ReportFormData) => {
+    onSubmit({
+      date: dateToString(data.date),
+      content: data.content,
+    });
+  };
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{report ? 'Edit Report' : 'Submit Daily Report'}</DialogTitle>
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(handleFormSubmit)}>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -84,8 +106,8 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
                         error: !!errors.date,
                         required: true,
                         helperText: report
-                          ? 'Date cannot be changed after submission' // Show this when editing
-                          : errors.date?.message, // Show error when creating
+                          ? 'Date cannot be changed after submission'
+                          : errors.date?.message,
                       },
                     }}
                   />

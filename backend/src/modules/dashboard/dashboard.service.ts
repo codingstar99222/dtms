@@ -15,10 +15,14 @@ import {
   TaskStatus,
   TransactionType,
 } from '@prisma/client';
+import { TimeService } from '../../common/services/time.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private timeService: TimeService,
+  ) {}
 
   async getDashboardSummary(
     userId: string,
@@ -26,7 +30,10 @@ export class DashboardService {
     filter?: DashboardFilterDto,
   ): Promise<DashboardSummaryDto> {
     // Set default date range (last 30 days if not specified)
-    const endDate = filter?.endDate ? new Date(filter.endDate) : new Date();
+    const endDate = filter?.endDate
+      ? new Date(filter.endDate)
+      : this.timeService.now();
+
     const startDate = filter?.startDate
       ? new Date(filter.startDate)
       : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -72,10 +79,10 @@ export class DashboardService {
   ) {
     // Base filters
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
-    const dateFilter = {
-      gte: startDate,
-      lte: endDate,
-    };
+
+    // Convert dates to strings for string comparison
+    const startDateStr = this.timeService.formatDate(startDate);
+    const endDateStr = this.timeService.formatDate(endDate);
 
     // Parallel queries for performance
     const [
@@ -98,12 +105,15 @@ export class DashboardService {
           })
         : Promise.resolve(0),
 
-      // Pending reports
+      // Pending reports - using string comparison
       this.prisma.report.count({
         where: {
           ...userFilter,
           status: ReportStatus.PENDING,
-          date: dateFilter,
+          date: {
+            gte: startDateStr, // Compare strings
+            lte: endDateStr, // "2026-03-19" >= "2026-03-01" works!
+          },
         },
       }),
 
@@ -122,7 +132,7 @@ export class DashboardService {
       this.prisma.timeEntry.aggregate({
         where: {
           ...userFilter,
-          startTime: dateFilter,
+          startTime: { gte: startDate, lte: endDate },
           endTime: { not: null },
         },
         _sum: { duration: true },
@@ -137,7 +147,7 @@ export class DashboardService {
       totalEarnings: financials.income,
       totalExpenses: financials.expenses,
       netBalance: financials.net,
-      totalHours: (totalHours._sum.duration || 0) / 60, // Convert to hours
+      totalHours: (totalHours._sum.duration || 0) / 60,
     };
   }
 
@@ -216,7 +226,7 @@ export class DashboardService {
     // Initialize date range
     const currentDate = new Date(startDate);
     while (currentDate <= endDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = this.timeService.formatDate(currentDate);
       const weekStr = this.getWeekString(currentDate);
       const monthStr = currentDate.toLocaleString('default', {
         month: 'short',
@@ -255,7 +265,7 @@ export class DashboardService {
 
     // Aggregate reports
     reports.forEach((r) => {
-      const dateStr = r.submittedAt.toISOString().split('T')[0];
+      const dateStr = this.timeService.formatDate(r.submittedAt);
       const weekStr = this.getWeekString(r.submittedAt);
       const monthStr = r.submittedAt.toLocaleString('default', {
         month: 'short',
@@ -269,7 +279,7 @@ export class DashboardService {
 
     // Aggregate tasks
     tasks.forEach((t) => {
-      const dateStr = t.createdAt.toISOString().split('T')[0];
+      const dateStr = this.timeService.formatDate(t.createdAt);
       const weekStr = this.getWeekString(t.createdAt);
       const monthStr = t.createdAt.toLocaleString('default', {
         month: 'short',
@@ -283,7 +293,7 @@ export class DashboardService {
 
     // Aggregate time entries
     timeEntries.forEach((te) => {
-      const dateStr = te.startTime.toISOString().split('T')[0];
+      const dateStr = this.timeService.formatDate(te.startTime);
       const weekStr = this.getWeekString(te.startTime);
       const monthStr = te.startTime.toLocaleString('default', {
         month: 'short',
@@ -298,7 +308,7 @@ export class DashboardService {
 
     // Aggregate transactions
     transactions.forEach((t) => {
-      const dateStr = t.timestamp.toISOString().split('T')[0];
+      const dateStr = this.timeService.formatDate(t.timestamp);
       const weekStr = this.getWeekString(t.timestamp);
       const monthStr = t.timestamp.toLocaleString('default', {
         month: 'short',
@@ -473,7 +483,7 @@ export class DashboardService {
         action: r.status === ReportStatus.APPROVED ? 'approved' : 'submitted',
         userName: r.user.name,
         userId: r.userId,
-        description: `Report for ${r.date.toLocaleDateString()}`,
+        description: `Report for ${String(r.date)}`,
         timestamp: r.submittedAt,
         link: `/reports/${r.id}`,
       });
@@ -570,6 +580,6 @@ export class DashboardService {
     const lastDay = new Date(firstDay);
     lastDay.setDate(firstDay.getDate() + 6);
 
-    return `${firstDay.toLocaleDateString()} - ${lastDay.toLocaleDateString()}`;
+    return `${this.timeService.formatDate(firstDay)} - ${this.timeService.formatDate(lastDay)}`;
   }
 }
