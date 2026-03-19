@@ -10,13 +10,15 @@ import {
   Toolbar,
   Box,
   Divider,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   People as PeopleIcon,
   Assignment as AssignmentIcon,
   Task as TaskIcon,
-  Article as BlogIcon, // Changed from Blog to Article
+  Article as BlogIcon,
   AttachMoney as MoneyIcon,
   Timer as TimerIcon,
 } from '@mui/icons-material';
@@ -39,16 +41,25 @@ const Sidebar = () => {
   const location = useLocation();
   const { user } = useAuthStore();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const filteredMenu = menuItems.filter(item => 
     item.roles.includes(user?.role || 'MEMBER')
   );
 
+  const handleDrawerClose = () => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <Drawer
-      variant="persistent"
+      variant={isMobile ? 'temporary' : 'persistent'}
       anchor="left"
       open={sidebarOpen}
+      onClose={handleDrawerClose}
       sx={{
         width: drawerWidth,
         flexShrink: 0,
@@ -67,7 +78,7 @@ const Sidebar = () => {
                 component={Link}
                 to={item.path}
                 selected={location.pathname === item.path}
-                onClick={() => setSidebarOpen(false)}
+                onClick={handleDrawerClose}
               >
                 <ListItemIcon>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} />
