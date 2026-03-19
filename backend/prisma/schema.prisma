@@ -28,7 +28,7 @@ model Report {
   id          String        @id @default(cuid())
   userId      String
   user        User          @relation(fields: [userId], references: [id])
-  date        DateTime
+  date        String
   content     String
   status      ReportStatus  @default(PENDING)
   reason      String?
@@ -81,7 +81,7 @@ model Task {
   startedAt   DateTime?
   completedAt DateTime?
   cancelledAt DateTime?
-  deadline    DateTime?
+  deadline    String?
   
   // Added opposite relations
   timeEntries TimeEntry[]

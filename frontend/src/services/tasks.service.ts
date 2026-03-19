@@ -1,15 +1,15 @@
 // frontend/src/services/tasks.service.ts
-import api from "./api";
-import type { Task } from "../types";
+import api from './api';
+import type { Task } from '../types';
 
 export type TaskStatus =
-  | "CREATED"
-  | "ASSIGNED"
-  | "IN_PROGRESS"
-  | "REVIEW"
-  | "COMPLETED"
-  | "CANCELLED";
-export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  | 'CREATED'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'REVIEW'
+  | 'COMPLETED'
+  | 'CANCELLED';
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export interface CreateTaskDto {
   title: string;
@@ -19,7 +19,7 @@ export interface CreateTaskDto {
   client?: string;
   rate?: number;
   budget?: number;
-  deadline?: string;
+  deadline?: string; // YYYY-MM-DD string
 }
 
 export interface UpdateTaskDto {
@@ -32,15 +32,15 @@ export interface UpdateTaskDto {
   rate?: number;
   budget?: number;
   hoursWorked?: number;
-  deadline?: string;
+  deadline?: string; // YYYY-MM-DD string
 }
 
 export interface TaskFilterDto {
   status?: TaskStatus;
   assigneeId?: string;
   creatorId?: string;
-  fromDate?: string;
-  toDate?: string;
+  fromDate?: string; // YYYY-MM-DD
+  toDate?: string; // YYYY-MM-DD
 }
 
 export interface DashboardStats {
@@ -53,18 +53,18 @@ export interface DashboardStats {
 
 export const tasksService = {
   async create(data: CreateTaskDto): Promise<Task> {
-    const response = await api.post<Task>("/tasks", data);
+    const response = await api.post<Task>('/tasks', data);
     return response.data;
   },
 
   async findAll(filter?: TaskFilterDto): Promise<Task[]> {
     const params = new URLSearchParams();
     if (filter) {
-      if (filter.status) params.append("status", filter.status);
-      if (filter.assigneeId) params.append("assigneeId", filter.assigneeId);
-      if (filter.creatorId) params.append("creatorId", filter.creatorId);
-      if (filter.fromDate) params.append("fromDate", filter.fromDate);
-      if (filter.toDate) params.append("toDate", filter.toDate);
+      if (filter.status) params.append('status', filter.status);
+      if (filter.assigneeId) params.append('assigneeId', filter.assigneeId);
+      if (filter.creatorId) params.append('creatorId', filter.creatorId);
+      if (filter.fromDate) params.append('fromDate', filter.fromDate);
+      if (filter.toDate) params.append('toDate', filter.toDate);
     }
 
     const response = await api.get<Task[]>(`/tasks?${params.toString()}`);
@@ -101,7 +101,7 @@ export const tasksService = {
   },
 
   async getDashboardStats(): Promise<DashboardStats> {
-    const response = await api.get<DashboardStats>("/tasks/dashboard/stats");
+    const response = await api.get<DashboardStats>('/tasks/dashboard/stats');
     return response.data;
   },
 

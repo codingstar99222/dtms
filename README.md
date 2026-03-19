@@ -4,13 +4,13 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 
-## Overview
+## 📄 Overview
 
 DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, time tracking, and knowledge sharing.
 
 ---
 
-## Core Objectives
+## 🎯 Core Objectives
 
 - Provide a self-contained team management system
 - Enable offline-first operation within LAN environments
@@ -19,7 +19,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Technology Stack
+## ⚙️ Technology Stack
 
 ### Backend
 
@@ -43,7 +43,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ### Backend Structure
 
@@ -66,7 +66,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Database Design
+## 🗄️ Database Design
 
 ### Core Entities
 
@@ -87,7 +87,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Authentication & Authorization
+## 🔐 Authentication & Authorization
 
 ### Flow
 
@@ -105,7 +105,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Features
+## 🧩 Features
 
 ### User Management
 
@@ -155,7 +155,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Data Flow
+## 🔄 Data Flow
 
 1. User interaction via UI
 2. Form validation (Zod + React Hook Form)
@@ -168,7 +168,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Security
+## 🛡️ Security
 
 - Password hashing with bcrypt (10 salt rounds)
 - JWT-based authentication
@@ -180,7 +180,46 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ---
 
-## Deployment
+## ⏰ Date & Time Handling
+
+DTMS uses a **strict, timezone-safe approach** for all date/time operations:
+
+### Calendar Dates (Reports, Deadlines)
+
+- **Stored as strings** in `YYYY-MM-DD` format (e.g., `"2026-03-19"`)
+- **Never** converted to Date objects in the database
+- **Display** by parsing the string directly (no timezone conversion)
+- **Comparisons** use string comparison (works because of YYYY-MM-DD format)
+
+### Timestamps (Time Tracking, Approvals, Audits)
+
+- **Stored as UTC** `DateTime` in database
+- **Generated** using `TimeService.now()` on the backend
+- **Display** in user's local timezone using `formatDateTime()`
+
+### Safety Rules
+
+1. **No future reports** - Cannot submit reports for dates > today
+2. **No duplicate dates** - One report per user per day
+3. **String comparison** for date ranges (gte/lte work with YYYY-MM-DD)
+
+### Adding New Modules with Dates
+
+When adding a new feature that uses dates:
+
+1. **If it's a calendar date** (like deadline, birthdate):
+   - Store as `String` in Prisma schema
+   - Use `TimeService` helpers for conversion
+   - Frontend: send as `YYYY-MM-DD` string
+
+2. **If it's a timestamp** (like createdAt, updatedAt):
+   - Store as `DateTime` in Prisma schema
+   - Use `TimeService.now()` to generate
+   - Frontend: display with `formatDateTime()`
+
+3. **Always use `TimeService`** - Never use `new Date()` directly
+
+## 🚀 Deployment
 
 ### Environment
 

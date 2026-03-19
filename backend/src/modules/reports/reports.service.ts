@@ -11,13 +11,15 @@ import {
   UpdateReportDto,
   ApproveReportDto,
   ReportResponseDto,
+  MissingReportDto,
 } from './dto/report.dto';
 import { ReportStatus, Role, Prisma } from '@prisma/client';
+import { TimeService } from '../../common/services/time.service';
 
 interface ReportWithUser {
   id: string;
   userId: string;
-  date: Date;
+  date: string; // Changed from Date to string
   content: string;
   status: ReportStatus;
   reason: string | null;
@@ -32,21 +34,25 @@ interface ReportWithUser {
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private timeService: TimeService,
+  ) {}
 
-  async create(
-    userId: string,
-    createReportDto: CreateReportDto,
-  ): Promise<ReportResponseDto> {
+  async create(userId: string, createReportDto: CreateReportDto) {
     const { date, content } = createReportDto;
-    const reportDate = new Date(date);
-    reportDate.setHours(0, 0, 0, 0);
+    // Get today's date as string
+    const todayStr = this.timeService.getTodayString();
 
-    // Check if report already exists for this date
+    // Check if trying to submit a future date
+    if (date > todayStr) {
+      throw new BadRequestException('Cannot submit reports for future dates');
+    }
+    // Just use the string directly
     const existingReport = await this.prisma.report.findFirst({
       where: {
         userId,
-        date: reportDate,
+        date: date, // Compare strings
       },
     });
 
@@ -57,21 +63,16 @@ export class ReportsService {
     const report = await this.prisma.report.create({
       data: {
         userId,
-        date: reportDate,
+        date, // Store the string
         content,
         status: ReportStatus.PENDING,
-        version: 1, // Initial version
+        version: 1,
+        submittedAt: new Date(),
       },
-      include: {
-        user: {
-          select: {
-            name: true,
-          },
-        },
-      },
+      include: { user: { select: { name: true } } },
     });
 
-    return this.toResponseDto(report as ReportWithUser, userId, Role.MEMBER);
+    return this.toResponseDto(report, userId, Role.MEMBER);
   }
 
   async findAll(userId: string, userRole: Role): Promise<ReportResponseDto[]> {
@@ -152,6 +153,12 @@ export class ReportsService {
 
     const updateData: Prisma.ReportUpdateInput = {};
 
+    if (updateReportDto.date) {
+      const todayStr = this.timeService.getTodayString();
+      if (updateReportDto.date > todayStr) {
+        throw new BadRequestException('Cannot update report to a future date');
+      }
+    }
     if (updateReportDto.content !== undefined) {
       updateData.content = updateReportDto.content;
     }
@@ -206,7 +213,7 @@ export class ReportsService {
       data: {
         status,
         reason: status === ReportStatus.REJECTED ? reason : null,
-        approvedAt: new Date(),
+        approvedAt: this.timeService.now(),
       },
       include: {
         user: {
@@ -233,8 +240,8 @@ export class ReportsService {
   async getUserReports(
     userId: string,
     userRole: Role,
-    startDate?: Date,
-    endDate?: Date,
+    startDate?: string, // Changed from Date to string
+    endDate?: string, // Changed from Date to string
   ): Promise<ReportResponseDto[]> {
     const where: Prisma.ReportWhereInput = { userId };
 
@@ -261,53 +268,45 @@ export class ReportsService {
     );
   }
 
-  async getMissingReports(
-    userId: string,
-  ): Promise<{ date: Date; dayOfWeek: string; isMissing: boolean }[]> {
+  async getMissingReports(userId: string): Promise<MissingReportDto[]> {
     console.log('🔍 getMissingReports called for userId:', userId);
 
-    const today = new Date();
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
-    console.log('Date range:', { lastWeek, today });
+    // Get date strings for the last 7 days
+    const last7Days = this.timeService.getDateRangeStrings(7);
+
+    console.log('Checking dates:', last7Days);
+
     const reports = await this.prisma.report.findMany({
       where: {
         userId,
         date: {
-          gte: lastWeek,
-          lte: today,
+          in: last7Days,
         },
       },
     });
-    console.log('Found reports in date range:', reports.length);
-    console.log(
-      'Report dates:',
-      reports.map((r) => r.date.toISOString().split('T')[0]),
-    );
 
-    const missingDays: { date: Date; dayOfWeek: string; isMissing: boolean }[] =
-      [];
-    const reportDates = new Set(
-      reports.map((r) => r.date.toISOString().split('T')[0]),
-    );
+    console.log('Found reports:', reports.length);
 
-    for (let d = new Date(lastWeek); d <= today; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      console.log(
-        'Checking date:',
-        dateStr,
-        'Exists?',
-        reportDates.has(dateStr),
-      );
-      if (!reportDates.has(dateStr)) {
-        missingDays.push({
-          date: new Date(d),
-          dayOfWeek: d.toLocaleDateString('en-US', { weekday: 'long' }),
+    const existingDates = new Set(reports.map((r) => r.date));
+
+    const missingDays: MissingReportDto[] = last7Days
+      .filter((dateStr) => !existingDates.has(dateStr))
+      .map((dateStr) => {
+        const { year, month, day } = this.timeService.parseDateString(dateStr);
+        // Create a date object just for day of week calculation
+        const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+        return {
+          date: dateStr,
+          dayOfWeek: date.toLocaleDateString('en-US', {
+            weekday: 'long',
+            timeZone: 'UTC',
+          }),
           isMissing: true,
-        });
-      }
-    }
+        };
+      });
 
+    console.log('Missing days:', missingDays.length);
     return missingDays;
   }
 
@@ -349,13 +348,9 @@ export class ReportsService {
     currentUserId: string,
     _currentUserRole: Role,
   ): ReportResponseDto {
-    void _currentUserRole; // remove unused argument
+    void _currentUserRole;
     const isOwner = report.userId === currentUserId;
 
-    // Rules:
-    // - Edit: Can edit if:
-    //   - Owner AND (status is PENDING OR status is REJECTED)
-    // - Delete: Only if pending and owner and never processed
     const canEdit =
       isOwner &&
       (report.status === ReportStatus.PENDING ||
@@ -370,7 +365,7 @@ export class ReportsService {
       id: report.id,
       userId: report.userId,
       userName: report.user?.name || 'Unknown',
-      date: report.date,
+      date: report.date, // Already a string, no conversion needed
       content: report.content,
       status: report.status,
       reason: report.reason || undefined,

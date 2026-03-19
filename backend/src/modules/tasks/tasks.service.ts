@@ -13,6 +13,7 @@ import {
   TaskFilterDto,
 } from './dto/task.dto';
 import { TaskStatus, Priority, Role, Prisma } from '@prisma/client';
+import { TimeService } from '../../common/services/time.service';
 
 interface TaskWithUsers {
   id: string;
@@ -30,14 +31,17 @@ interface TaskWithUsers {
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
-  deadline: Date | null;
+  deadline: string | null; // Changed from Date to string
   assignee: { name: string } | null;
   creator: { name: string };
 }
 
 @Injectable()
 export class TasksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private timeService: TimeService, // Inject TimeService
+  ) {}
 
   async create(
     creatorId: string,
@@ -54,6 +58,15 @@ export class TasksService {
       deadline,
     } = createTaskDto;
 
+    // Handle deadline - store as string directly (no Date conversion)
+    let deadlineStr: string | null = null;
+    if (deadline) {
+      // Optional: Validate the date format using TimeService
+      // const { year, month, day } = this.timeService.parseDateString(deadline);
+      // You could do validation here, but store the original string
+      deadlineStr = deadline; // Just use the string directly
+    }
+
     const task = await this.prisma.task.create({
       data: {
         title,
@@ -64,8 +77,9 @@ export class TasksService {
         client,
         rate,
         budget,
-        deadline: deadline ? new Date(deadline) : null,
+        deadline: deadlineStr, // Store as string, not Date
         status: TaskStatus.CREATED,
+        createdAt: this.timeService.now(),
       },
       include: {
         assignee: {
@@ -79,7 +93,6 @@ export class TasksService {
 
     return this.toResponseDto(task as TaskWithUsers);
   }
-
   async findAll(
     userId: string,
     userRole: Role,
@@ -189,22 +202,8 @@ export class TasksService {
       );
     }
 
-    // Prepare update data
-    const updateData: Partial<{
-      title: string;
-      description: string;
-      status: TaskStatus;
-      priority: Priority;
-      assigneeId: string | null;
-      client: string | null;
-      rate: number | null;
-      budget: number | null;
-      hoursWorked: number;
-      startedAt: Date;
-      completedAt: Date;
-      cancelledAt: Date;
-      deadline: Date | null;
-    }> = {};
+    // Build update data directly as Prisma expects
+    const updateData: Prisma.TaskUpdateInput = {};
 
     if (updateTaskDto.title !== undefined)
       updateData.title = updateTaskDto.title;
@@ -214,8 +213,13 @@ export class TasksService {
       updateData.status = updateTaskDto.status;
     if (updateTaskDto.priority !== undefined)
       updateData.priority = updateTaskDto.priority;
-    if (updateTaskDto.assigneeId !== undefined)
-      updateData.assigneeId = updateTaskDto.assigneeId;
+    if (updateTaskDto.assigneeId !== undefined) {
+      if (updateTaskDto.assigneeId === null) {
+        updateData.assignee = { disconnect: true };
+      } else {
+        updateData.assignee = { connect: { id: updateTaskDto.assigneeId } };
+      }
+    }
     if (updateTaskDto.client !== undefined)
       updateData.client = updateTaskDto.client;
     if (updateTaskDto.rate !== undefined) updateData.rate = updateTaskDto.rate;
@@ -224,21 +228,21 @@ export class TasksService {
     if (updateTaskDto.hoursWorked !== undefined)
       updateData.hoursWorked = updateTaskDto.hoursWorked;
 
-    if (updateTaskDto.deadline) {
-      updateData.deadline = new Date(updateTaskDto.deadline);
+    if (updateTaskDto.deadline !== undefined) {
+      updateData.deadline = updateTaskDto.deadline || null; // Store as string directly
     }
 
     // Handle status transitions
     if (updateTaskDto.status && updateTaskDto.status !== task.status) {
       this.validateStatusTransition(task.status, updateTaskDto.status);
 
-      // Set timestamps based on status
+      // Set timestamps based on status using TimeService
       if (updateTaskDto.status === TaskStatus.IN_PROGRESS && !task.startedAt) {
-        updateData.startedAt = new Date();
+        updateData.startedAt = this.timeService.now();
       } else if (updateTaskDto.status === TaskStatus.COMPLETED) {
-        updateData.completedAt = new Date();
+        updateData.completedAt = this.timeService.now();
       } else if (updateTaskDto.status === TaskStatus.CANCELLED) {
-        updateData.cancelledAt = new Date();
+        updateData.cancelledAt = this.timeService.now();
       }
     }
 
@@ -337,7 +341,7 @@ export class TasksService {
       where: { id },
       data: {
         status: TaskStatus.IN_PROGRESS,
-        startedAt: new Date(),
+        startedAt: this.timeService.now(), // Use TimeService
       },
       include: {
         assignee: {
@@ -387,7 +391,7 @@ export class TasksService {
       hoursWorked?: number;
     } = {
       status: TaskStatus.COMPLETED,
-      completedAt: new Date(),
+      completedAt: this.timeService.now(), // Use TimeService
     };
 
     if (hoursWorked !== undefined) {
@@ -418,6 +422,9 @@ export class TasksService {
       baseWhere.OR = [{ creatorId: userId }, { assigneeId: userId }];
     }
 
+    // Get today's date as string in YYYY-MM-DD format
+    const todayStr = this.timeService.getTodayString();
+
     // Create typed where clauses
     const totalWhere: Prisma.TaskWhereInput = { ...baseWhere };
 
@@ -436,13 +443,14 @@ export class TasksService {
       status: TaskStatus.COMPLETED,
     };
 
+    // For overdue tasks: deadline string < today's string AND not completed/cancelled
     const overdueWhere: Prisma.TaskWhereInput = {
       ...baseWhere,
       status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
-      deadline: { lt: new Date() },
+      deadline: { lt: todayStr }, // Compare strings! "2026-03-19" < "2026-03-20"
     };
 
-    // Execute all queries in parallel with proper typing
+    // Execute all queries in parallel
     const [
       totalTasks,
       pendingTasks,
@@ -517,7 +525,7 @@ export class TasksService {
       startedAt: task.startedAt || undefined,
       completedAt: task.completedAt || undefined,
       cancelledAt: task.cancelledAt || undefined,
-      deadline: task.deadline || undefined,
+      deadline: task.deadline || undefined, // Format as string
     };
   }
 }

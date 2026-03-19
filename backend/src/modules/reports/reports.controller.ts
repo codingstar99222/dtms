@@ -67,15 +67,12 @@ export class ReportsController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const start = startDate ? new Date(startDate) : undefined;
-    const end = endDate ? new Date(endDate) : undefined;
-
     // Pass all required arguments: userId, userRole, startDate, endDate
     return this.reportsService.getUserReports(
       userId,
-      req.user.role, // 👈 Add the missing userRole
-      start,
-      end,
+      req.user.role,
+      startDate,
+      endDate,
     );
   }
 

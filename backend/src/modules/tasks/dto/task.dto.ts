@@ -107,7 +107,7 @@ export class TaskResponseDto {
   startedAt?: Date;
   completedAt?: Date;
   cancelledAt?: Date;
-  deadline?: Date;
+  deadline?: string;
 }
 
 export class TaskFilterDto {

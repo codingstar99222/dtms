@@ -17,6 +17,7 @@ import {
   ActiveTimerDto,
 } from './dto/time-tracking.dto';
 import { Role, Prisma } from '@prisma/client';
+import { TimeService } from '../../common/services/time.service';
 
 interface TimeEntryWithDetails {
   id: string;
@@ -38,7 +39,10 @@ interface TimeEntryWithDetails {
 
 @Injectable()
 export class TimeTrackingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private timeService: TimeService, // Inject TimeService
+  ) {}
 
   // Start a timer (automatic tracking)
   async startTimer(
@@ -74,7 +78,7 @@ export class TimeTrackingService {
         userId,
         taskId: startDto.taskId,
         description: startDto.description,
-        startTime: new Date(),
+        startTime: this.timeService.now(), // Use TimeService
       },
       include: {
         user: {
@@ -105,7 +109,7 @@ export class TimeTrackingService {
       throw new BadRequestException('No active timer found');
     }
 
-    const endTime = new Date();
+    const endTime = this.timeService.now(); // Use TimeService
     const duration = Math.round(
       (endTime.getTime() - activeEntry.startTime.getTime()) / 60000,
     ); // minutes
@@ -164,7 +168,8 @@ export class TimeTrackingService {
     }
 
     const elapsedMinutes = Math.round(
-      (new Date().getTime() - activeEntry.startTime.getTime()) / 60000,
+      (this.timeService.now().getTime() - activeEntry.startTime.getTime()) /
+        60000,
     );
 
     return {
@@ -208,6 +213,7 @@ export class TimeTrackingService {
         startTime: start,
         endTime: end,
         duration,
+        createdAt: this.timeService.now(), // Use TimeService
       },
       include: {
         user: {

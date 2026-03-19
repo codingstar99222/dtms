@@ -24,8 +24,8 @@ interface ErrorResponse {
   message: string;
 }
 
-interface ReportFormData {
-  date: Date;
+interface ReportFormSubmitData {
+  date: string; // string, not Date
   content: string;
 }
 
@@ -167,11 +167,16 @@ const Reports = () => {
     }
   };
 
-  const handleFormSubmit = async (data: ReportFormData) => {
+  const handleFormSubmit = async (data: ReportFormSubmitData) => {
+    console.log('📝 Reports.tsx received:', data);
+
+    // data.date is already a string from ReportForm
     const reportData: CreateReportDto = {
-      date: data.date.toISOString().split('T')[0],
+      date: data.date, // already string
       content: data.content,
     };
+
+    console.log('📝 Sending to API:', reportData);
 
     if (selectedReport) {
       updateMutation.mutate({ id: selectedReport.id, data: reportData });
