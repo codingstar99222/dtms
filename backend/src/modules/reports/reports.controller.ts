@@ -10,8 +10,6 @@ import {
   UseGuards,
   Request,
   Query,
-  ForbiddenException,
-  BadRequestException,
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import {
@@ -20,7 +18,7 @@ import {
   ApproveReportDto,
 } from './dto/report.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { Role, ReportStatus } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -64,13 +62,31 @@ export class ReportsController {
   @Get('user/:userId')
   @Roles(Role.ADMIN)
   async getUserReports(
+    @Request() req: RequestWithUser,
     @Param('userId') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.reportsService.getUserReports(userId, start, end);
+
+    // Pass all required arguments: userId, userRole, startDate, endDate
+    return this.reportsService.getUserReports(
+      userId,
+      req.user.role, // 👈 Add the missing userRole
+      start,
+      end,
+    );
+  }
+
+  @Get('missing')
+  async getMissingReports(@Request() req: RequestWithUser) {
+    console.log('🔥 Missing reports endpoint hit!');
+    // Only members can see their missing reports
+    if (req.user.role === Role.ADMIN) {
+      return []; // Admins don't have missing reports
+    }
+    return this.reportsService.getMissingReports(req.user.id);
   }
 
   @Get(':id')
@@ -90,32 +106,24 @@ export class ReportsController {
   @Patch(':id/approve')
   @Roles(Role.ADMIN)
   async approve(
+    @Request() req: RequestWithUser,
     @Param('id') id: string,
     @Body() approveReportDto: ApproveReportDto,
   ) {
-    return this.reportsService.approve(id, approveReportDto);
+    // Pass all 4 required arguments: id, dto, userId, userRole
+    return this.reportsService.approve(
+      id,
+      approveReportDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
   async remove(@Request() req: RequestWithUser, @Param('id') id: string) {
-    const report = await this.reportsService.findOne(
-      id,
-      req.user.id,
-      req.user.role,
-    );
+    // Use the service method that already contains all the logic
+    await this.reportsService.remove(id, req.user.id, req.user.role);
 
-    if (report.userId !== req.user.id && req.user.role !== Role.ADMIN) {
-      throw new ForbiddenException('You can only delete your own reports');
-    }
-
-    if (
-      report.status !== ReportStatus.PENDING &&
-      req.user.role !== Role.ADMIN
-    ) {
-      throw new BadRequestException('Only pending reports can be deleted');
-    }
-
-    await this.prisma.report.delete({ where: { id } });
     return { message: 'Report deleted successfully' };
   }
 }

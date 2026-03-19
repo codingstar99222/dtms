@@ -19,7 +19,7 @@ import type { Report } from '../../types';
 
 const reportSchema = z.object({
   date: z.date({
-    message: 'Please select a valid date'
+    message: 'Please select a valid date',
   }),
   content: z.string().min(10, 'Content must be at least 10 characters'),
 });
@@ -63,9 +63,7 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        {report ? 'Edit Report' : 'Submit Daily Report'}
-      </DialogTitle>
+      <DialogTitle>{report ? 'Edit Report' : 'Submit Daily Report'}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -78,12 +76,16 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
                     label="Report Date"
                     value={field.value}
                     onChange={(date) => field.onChange(date)}
+                    readOnly={!!report}
+                    disabled={!!report}
                     slotProps={{
                       textField: {
                         fullWidth: true,
                         error: !!errors.date,
-                        helperText: errors.date?.message,
                         required: true,
+                        helperText: report
+                          ? 'Date cannot be changed after submission' // Show this when editing
+                          : errors.date?.message, // Show error when creating
                       },
                     }}
                   />
@@ -112,11 +114,7 @@ const ReportForm = ({ open, onClose, onSubmit, report }: ReportFormProps) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" variant="contained" disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : report ? 'Update' : 'Submit'}
           </Button>
         </DialogActions>

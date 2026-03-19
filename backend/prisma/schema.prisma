@@ -29,13 +29,15 @@ model Report {
   userId      String
   user        User          @relation(fields: [userId], references: [id])
   date        DateTime
-  content     String        // Removed @db.Text
+  content     String
   status      ReportStatus  @default(PENDING)
-  reason      String?       // Removed @db.Text
+  reason      String?
   submittedAt DateTime      @default(now())
   approvedAt  DateTime?
   updatedAt   DateTime      @updatedAt
-
+  deletedAt   DateTime?
+  version     Int           @default(1)
+  
   @@unique([userId, date])
   @@index([userId])
   @@index([date])

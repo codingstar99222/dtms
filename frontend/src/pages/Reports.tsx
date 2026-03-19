@@ -1,14 +1,11 @@
 // frontend/src/pages/Reports.tsx
 import { useState } from 'react';
+import { Container, Typography, Button, Box, Alert, Chip } from '@mui/material';
 import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Alert,
-  Chip,
-} from '@mui/material';
-import { Add as AddIcon, PendingActions as PendingIcon } from '@mui/icons-material';
+  Add as AddIcon,
+  PendingActions as PendingIcon,
+  Notifications as NotificationsIcon,
+} from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsService } from '../services/reports.service';
 import type { CreateReportDto, UpdateReportDto } from '../services/reports.service';
@@ -42,7 +39,11 @@ const Reports = () => {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
   // Fetch reports
-  const { data: reports = [], isLoading, error } = useQuery<Report[]>({
+  const {
+    data: reports = [],
+    isLoading,
+    error,
+  } = useQuery<Report[]>({
     queryKey: ['reports'],
     queryFn: reportsService.findAll,
   });
@@ -51,9 +52,17 @@ const Reports = () => {
   const { data: pendingCount } = useQuery<{ count: number }>({
     queryKey: ['reports', 'pending'],
     queryFn: reportsService.getPendingCount,
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
 
+  // Missing reports
+  const { data: missingReports = [] } = useQuery({
+    queryKey: ['reports', 'missing'],
+    queryFn: () => reportsService.getMissingReports(),
+    throwOnError: false, // This replaces onError
+  });
+  console.log('Frontend - missingReports:', missingReports);
+  console.log('Frontend - missingReports length:', missingReports.length);
   // Create report mutation
   const createMutation = useMutation<Report, AxiosError<ErrorResponse>, CreateReportDto>({
     mutationFn: (data: CreateReportDto) => reportsService.create(data),
@@ -68,7 +77,11 @@ const Reports = () => {
   });
 
   // Update report mutation
-  const updateMutation = useMutation<Report, AxiosError<ErrorResponse>, { id: string; data: UpdateReportDto }>({
+  const updateMutation = useMutation<
+    Report,
+    AxiosError<ErrorResponse>,
+    { id: string; data: UpdateReportDto }
+  >({
     mutationFn: ({ id, data }: { id: string; data: UpdateReportDto }) =>
       reportsService.update(id, data),
     onSuccess: () => {
@@ -97,9 +110,18 @@ const Reports = () => {
   });
 
   // Approve report mutation
-  const approveMutation = useMutation<Report, AxiosError<ErrorResponse>, { id: string; data: { status: 'APPROVED' | 'REJECTED'; reason?: string } }>({
-    mutationFn: ({ id, data }: { id: string; data: { status: 'APPROVED' | 'REJECTED'; reason?: string } }) =>
-      reportsService.approve(id, data),
+  const approveMutation = useMutation<
+    Report,
+    AxiosError<ErrorResponse>,
+    { id: string; data: { status: 'APPROVED' | 'REJECTED'; reason?: string } }
+  >({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { status: 'APPROVED' | 'REJECTED'; reason?: string };
+    }) => reportsService.approve(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['reports', 'pending'] });
@@ -138,7 +160,7 @@ const Reports = () => {
   };
 
   const handleDelete = (reportId: string) => {
-    const report = reports.find(r => r.id === reportId);
+    const report = reports.find((r) => r.id === reportId);
     if (report) {
       setSelectedReport(report);
       setDeleteDialogOpen(true);
@@ -160,9 +182,9 @@ const Reports = () => {
 
   const handleApproveConfirm = (status: 'APPROVED' | 'REJECTED', reason?: string) => {
     if (selectedReport) {
-      approveMutation.mutate({ 
-        id: selectedReport.id, 
-        data: { status, reason } 
+      approveMutation.mutate({
+        id: selectedReport.id,
+        data: { status, reason },
       });
     }
   };
@@ -202,18 +224,44 @@ const Reports = () => {
             />
           )}
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreate}
-        >
-          Submit Report
-        </Button>
+
+        {/* Conditional button - Admin sees Notification, Members see Submit */}
+        {isAdmin ? (
+          <Button
+            variant="contained"
+            startIcon={<NotificationsIcon />}
+            onClick={() => toast.success('Notifications coming soon!')}
+          >
+            Add Notification
+          </Button>
+        ) : (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
+            Submit Report
+          </Button>
+        )}
       </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           Failed to load reports
+        </Alert>
+      )}
+
+      {/* Missing reports warning - only for members */}
+      {!isAdmin && missingReports.length > 0 && (
+        <Alert
+          severity="warning"
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" onClick={() => setFormOpen(true)}>
+              Submit Now
+            </Button>
+          }
+        >
+          <Typography variant="body2">
+            You have {missingReports.length} missing report{missingReports.length > 1 ? 's' : ''}{' '}
+            from the last 7 days.
+          </Typography>
         </Alert>
       )}
 
@@ -251,7 +299,9 @@ const Reports = () => {
         open={deleteDialogOpen}
         onClose={handleCloseDialogs}
         onConfirm={handleDeleteConfirm}
-        userName={selectedReport ? `report from ${new Date(selectedReport.date).toLocaleDateString()}` : ''}
+        userName={
+          selectedReport ? `report from ${new Date(selectedReport.date).toLocaleDateString()}` : ''
+        }
       />
     </Container>
   );
