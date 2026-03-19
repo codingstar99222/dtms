@@ -1,5 +1,5 @@
 // frontend/src/types/index.ts
-export type Role = "ADMIN" | "MEMBER";
+export type Role = 'ADMIN' | 'MEMBER';
 
 export interface User {
   id: string;
@@ -29,7 +29,7 @@ export interface RegisterDto {
 }
 
 // Reports
-export type ReportStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type ReportStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface Report {
   id: string;
@@ -41,17 +41,20 @@ export interface Report {
   reason?: string;
   submittedAt: string;
   approvedAt?: string;
+  version: number;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 // Tasks
 export type TaskStatus =
-  | "CREATED"
-  | "ASSIGNED"
-  | "IN_PROGRESS"
-  | "REVIEW"
-  | "COMPLETED"
-  | "CANCELLED";
-export type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  | 'CREATED'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'REVIEW'
+  | 'COMPLETED'
+  | 'CANCELLED';
+export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 export interface Task {
   id: string;
@@ -74,12 +77,7 @@ export interface Task {
 }
 
 // Blog
-export type BlogCategory =
-  | "TUTORIAL"
-  | "TIP"
-  | "RESOURCE"
-  | "CODE_SNIPPET"
-  | "EXPERIENCE";
+export type BlogCategory = 'TUTORIAL' | 'TIP' | 'RESOURCE' | 'CODE_SNIPPET' | 'EXPERIENCE';
 
 export interface BlogPost {
   id: string;
@@ -97,7 +95,7 @@ export interface BlogPost {
 }
 
 // Financial
-export type TransactionType = "INCOME" | "EXPENSE";
+export type TransactionType = 'INCOME' | 'EXPENSE';
 
 export interface Transaction {
   id: string;
@@ -168,7 +166,7 @@ export interface MonthlyTrend {
 
 export interface Activity {
   id: string;
-  type: "report" | "task" | "blog" | "time" | "financial";
+  type: 'report' | 'task' | 'blog' | 'time' | 'financial';
   action: string;
   userName: string;
   userId: string;

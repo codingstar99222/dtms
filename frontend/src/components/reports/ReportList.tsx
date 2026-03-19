@@ -59,13 +59,13 @@ const getStatusColor = (status: string): StatusColor => {
   }
 };
 
-const ReportList = ({ 
-  reports, 
-  onEdit, 
-  onDelete, 
-  onApprove, 
+const ReportList = ({
+  reports,
+  onEdit,
+  onDelete,
+  onApprove,
   onReject,
-  onView 
+  onView,
 }: ReportListProps) => {
   const { user } = useAuthStore();
   const [page, setPage] = useState(0);
@@ -73,8 +73,9 @@ const ReportList = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = report.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredReports = reports.filter((report) => {
+    const matchesSearch =
+      report.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.userName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -120,11 +121,7 @@ const ReportList = ({
           />
           <FormControl sx={{ minWidth: 200 }}>
             <InputLabel>Status</InputLabel>
-            <Select
-              value={statusFilter}
-              label="Status"
-              onChange={handleStatusFilterChange}
-            >
+            <Select value={statusFilter} label="Status" onChange={handleStatusFilterChange}>
               <MenuItem value="all">All</MenuItem>
               <MenuItem value="PENDING">Pending</MenuItem>
               <MenuItem value="APPROVED">Approved</MenuItem>
@@ -156,24 +153,20 @@ const ReportList = ({
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      maxWidth: 300, 
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      maxWidth: 300,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {report.content}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={report.status}
-                    color={getStatusColor(report.status)}
-                    size="small"
-                  />
+                  <Chip label={report.status} color={getStatusColor(report.status)} size="small" />
                 </TableCell>
                 <TableCell>
                   <Tooltip title={formatDateTime(report.submittedAt)}>
@@ -182,55 +175,46 @@ const ReportList = ({
                 </TableCell>
                 <TableCell align="center">
                   <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                    {/* View - always available */}
                     <Tooltip title="View">
                       <IconButton size="small" onClick={() => onView(report)} color="info">
                         <ViewIcon />
                       </IconButton>
                     </Tooltip>
 
-                    {report.status === 'PENDING' && (
+                    {/* Admin Approval Actions - Only for PENDING reports */}
+                    {isAdmin && report.status === 'PENDING' && (
                       <>
-                        {isAdmin && (
-                          <>
-                            <Tooltip title="Approve">
-                              <IconButton
-                                size="small"
-                                onClick={() => onApprove(report)}
-                                color="success"
-                              >
-                                <ApproveIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton
-                                size="small"
-                                onClick={() => onReject(report)}
-                                color="error"
-                              >
-                                <RejectIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                        <Tooltip title="Edit">
+                        <Tooltip title="Approve">
                           <IconButton
                             size="small"
-                            onClick={() => onEdit(report)}
-                            color="primary"
+                            onClick={() => onApprove(report)}
+                            color="success"
                           >
-                            <EditIcon />
+                            <ApproveIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reject">
+                          <IconButton size="small" onClick={() => onReject(report)} color="error">
+                            <RejectIcon />
                           </IconButton>
                         </Tooltip>
                       </>
                     )}
 
-                    {(isAdmin || report.userId === user?.id) && report.status === 'PENDING' && (
+                    {/* Edit - only if canEdit flag is true */}
+                    {report.canEdit && (
+                      <Tooltip title="Edit">
+                        <IconButton size="small" onClick={() => onEdit(report)} color="primary">
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+
+                    {/* Delete - only if canDelete flag is true OR admin */}
+                    {(report.canDelete || isAdmin) && (
                       <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          onClick={() => onDelete(report.id)}
-                          color="error"
-                        >
+                        <IconButton size="small" onClick={() => onDelete(report.id)} color="error">
                           <DeleteIcon />
                         </IconButton>
                       </Tooltip>
@@ -242,9 +226,7 @@ const ReportList = ({
             {paginatedReports.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
-                  <Typography color="text.secondary">
-                    No reports found
-                  </Typography>
+                  <Typography color="text.secondary">No reports found</Typography>
                 </TableCell>
               </TableRow>
             )}

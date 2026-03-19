@@ -40,4 +40,12 @@ export class ReportResponseDto {
   submittedAt: Date;
   approvedAt?: Date;
   updatedAt: Date;
+  version: number;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+export class MissingReportDto {
+  date: Date;
+  dayOfWeek: string;
+  isMissing: boolean;
 }
