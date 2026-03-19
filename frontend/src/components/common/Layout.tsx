@@ -1,25 +1,38 @@
 // frontend/src/components/common/Layout.tsx
 import { Outlet } from 'react-router-dom';
-import { Box, Toolbar } from '@mui/material';
+import { Box, Toolbar, useMediaQuery, useTheme } from '@mui/material';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import { useUIStore } from '../../store/uiStore';
+import { useEffect } from 'react';
+
+const drawerWidth = 240;
 
 const Layout = () => {
-  const { sidebarOpen } = useUIStore();
+  const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Auto-close sidebar on mobile, auto-open on desktop
+  useEffect(() => {
+    setSidebarOpen(!isMobile);
+  }, [isMobile, setSidebarOpen]);
 
   return (
     <Box sx={{ display: 'flex' }}>
       <Navbar />
-      <Sidebar />
+      <Sidebar /> {/* sidebarOpen is used inside Sidebar component */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${sidebarOpen ? 240 : 0}px)` },
-          ml: { sm: sidebarOpen ? '240px' : 0 },
-          transition: 'margin 225ms cubic-bezier(0.4, 0, 0.6, 1) 0ms, width 225ms cubic-bezier(0.4, 0, 0.6, 1) 0ms',
+          width: { md: `calc(100% - ${sidebarOpen ? drawerWidth : 0}px)` },
+          ml: { md: `${sidebarOpen ? drawerWidth : 0}px` },
+          transition: theme.transitions.create(['margin', 'width'], {
+            easing: theme.transitions.easing.sharp,
+            duration: theme.transitions.duration.leavingScreen,
+          }),
         }}
       >
         <Toolbar />
