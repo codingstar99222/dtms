@@ -138,17 +138,38 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ### Financial Tracking
 
-- Income and expense tracking
-- Optional task linkage
-- User-level and team-level views
-- Trend visualization
+- **Income-only system** (expense tracking reserved for future)
+- **Admin-only entry**: Admins create income records for members
+- **Member view**: Members see their own income history
+- **Key fields**:
+  - **Source**: Client/company name (free text)
+  - **Payment Method**: Free text (e.g., Bank Transfer, Payoneer, Crypto)
+  - **Amount**: Numeric value with currency formatting
+  - **Description**: Work or payment details
+  - **Date**: Payment date (YYYY-MM-DD)
+- **Admin features**:
+  - Full CRUD operations on all income records
+  - Filter by date range and source
+  - View total income across all members
+  - Top 3 earners leaderboard
+- **Dashboard integration**: Income trends and top performers shown in main dashboard
 
 ### Blog System
 
-- Internal knowledge sharing
-- Categories and tagging
-- Code snippets and external links
-- View tracking and popularity sorting
+- **Internal knowledge sharing**: Team members share tutorials, tips, and experiences
+- **Categories**: Tutorial, Tip, Resource, Code Snippet, Experience
+- **Tagging**: Multiple tags per post for better organization
+- **Code snippets**: Dedicated field with monospace formatting
+- **External links**: Optional URL field for resources
+- **Permission rules**:
+  - **Members**: Create, edit, and delete their own posts
+  - **Admins**: Full CRUD access to all posts
+- **Organization**:
+  - Search by title, content, or tags
+  - Filter by category
+  - Sort by newest/oldest
+- **Clean UI**: Card-based grid layout with action icons (Edit/Delete for owners, View for all)
+- **No view tracking**: Removed view counts and popularity features for simplicity
 
 ### Dashboard
 
