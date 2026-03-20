@@ -148,13 +148,13 @@ export interface MonthlyTrend {
 
 export interface Activity {
   id: string;
-  type: 'report' | 'task' | 'blog' | 'time' | 'financial';
+  type: 'report' | 'task' | 'blog';
   action: string;
   userName: string;
   userId: string;
   description: string;
   timestamp: string;
-  link?: string;
+  link?: string; // Optional, keep for compatibility
 }
 
 export interface DashboardSummary {

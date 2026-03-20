@@ -6,7 +6,6 @@ import {
   ListItem,
   ListItemAvatar,
   Avatar,
-  ListItemText,
   Divider,
   Box,
   Chip,
@@ -15,12 +14,9 @@ import {
   Assignment as ReportIcon,
   Task as TaskIcon,
   Article as BlogIcon,
-  Timer as TimeIcon,
-  AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
 import type { Activity } from '../../types';
 import { formatDateTime } from '../../utils/formatters';
-import { Link } from 'react-router-dom';
 
 interface RecentActivitiesProps {
   activities: Activity[];
@@ -34,10 +30,8 @@ const getActivityIcon = (type: Activity['type']) => {
       return <TaskIcon />;
     case 'blog':
       return <BlogIcon />;
-    case 'time':
-      return <TimeIcon />;
-    case 'financial':
-      return <MoneyIcon />;
+    default:
+      return <ReportIcon />;
   }
 };
 
@@ -49,10 +43,8 @@ const getActivityColor = (type: Activity['type']) => {
       return '#2196f3';
     case 'blog':
       return '#9c27b0';
-    case 'time':
-      return '#4caf50';
-    case 'financial':
-      return '#f44336';
+    default:
+      return '#9e9e9e';
   }
 };
 
@@ -60,54 +52,42 @@ const RecentActivities = ({ activities }: RecentActivitiesProps) => {
   return (
     <Paper sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>
-        Recent Activities
+        Recent Activities (Last 7 Days)
       </Typography>
       <List>
         {activities.map((activity, index) => (
           <Box key={activity.id}>
-            <ListItem
-              component={activity.link ? Link : 'div'}
-              to={activity.link}
-              sx={{
-                textDecoration: 'none',
-                color: 'inherit',
-                '&:hover': activity.link ? {
-                  backgroundColor: 'action.hover',
-                } : {},
-              }}
-            >
+            <ListItem sx={{ py: 1.5, alignItems: 'flex-start' }}>
               <ListItemAvatar>
                 <Avatar sx={{ bgcolor: getActivityColor(activity.type) }}>
                   {getActivityIcon(activity.type)}
                 </Avatar>
               </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body1">{activity.userName}</Typography>
-                    <Chip
-                      label={activity.action}
-                      size="small"
-                      color="primary"
-                      variant="outlined"
-                    />
-                  </Box>
-                }
-                secondary={
-                  <>
-                    <Typography variant="body2" color="text.secondary">
-                      {activity.description}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDateTime(activity.timestamp)}
-                    </Typography>
-                  </>
-                }
-              />
+              <Box sx={{ flex: 1 }}>
+                <Box
+                  sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 0.5 }}
+                >
+                  <Typography component="span" variant="body1">
+                    {activity.userName}
+                  </Typography>
+                  <Chip label={activity.action} size="small" color="primary" variant="outlined" />
+                </Box>
+                <Box component="div" sx={{ mt: 0.5, mb: 0.5 }}>
+                  {activity.description}
+                </Box>
+                <Box component="span" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                  {formatDateTime(activity.timestamp)}
+                </Box>
+              </Box>
             </ListItem>
             {index < activities.length - 1 && <Divider variant="inset" component="li" />}
           </Box>
         ))}
+        {activities.length === 0 && (
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Typography color="text.secondary">No recent activities in the last 7 days</Typography>
+          </Box>
+        )}
       </List>
     </Paper>
   );

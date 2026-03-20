@@ -50,12 +50,7 @@ export class DashboardService {
     );
 
     // Get recent activities
-    const recentActivities = await this.getRecentActivities(
-      userId,
-      userRole,
-      startDate,
-      endDate,
-    );
+    const recentActivities = await this.getRecentActivities(userId, userRole);
 
     return {
       overview,
@@ -76,8 +71,9 @@ export class DashboardService {
       totalMembers,
       activeMembers,
       pendingReports,
+      activeTasks,
+      completedTasks,
       totalIncome,
-      totalTasks,
     ] = await Promise.all([
       // Total members (admin only)
       userRole === Role.ADMIN
@@ -100,17 +96,20 @@ export class DashboardService {
         },
       }),
 
-      // Total income from transactions
-      this.prisma.transaction.aggregate({
+      // Active tasks (in progress/review) - exclude archived
+      this.prisma.task.count({
         where: {
-          ...(userRole === Role.ADMIN ? {} : { userId }),
-          type: 'INCOME',
-          timestamp: { gte: startDateStr, lte: endDateStr },
+          ...(userRole === Role.ADMIN
+            ? {}
+            : {
+                OR: [{ assigneeId: userId }, { creatorId: userId }],
+              }),
+          status: { in: [TaskStatus.IN_PROGRESS, TaskStatus.REVIEW] },
+          isArchived: false,
         },
-        _sum: { amount: true },
       }),
 
-      // Total completed tasks
+      // Completed tasks - INCLUDE archived tasks (count them)
       this.prisma.task.count({
         where: {
           ...(userRole === Role.ADMIN
@@ -119,18 +118,47 @@ export class DashboardService {
                 OR: [{ assigneeId: userId }, { creatorId: userId }],
               }),
           status: TaskStatus.COMPLETED,
-          createdAt: { gte: new Date(startDateStr), lte: new Date(endDateStr) },
+          completedAt: {
+            gte: new Date(startDateStr + 'T00:00:00Z'),
+            lte: new Date(endDateStr + 'T23:59:59Z'),
+          },
         },
       }),
+
+      // Total income
+      this.getTotalIncome(userId, userRole, startDateStr, endDateStr),
     ]);
 
     return {
-      totalIncome: totalIncome._sum.amount || 0,
-      totalTasks,
       totalMembers,
       activeMembers,
       pendingReports,
+      activeTasks,
+      totalTasks: completedTasks,
+      totalIncome,
     };
+  }
+
+  private async getTotalIncome(
+    userId: string,
+    userRole: Role,
+    startDateStr: string,
+    endDateStr: string,
+  ): Promise<number> {
+    const userFilter = userRole === Role.ADMIN ? {} : { userId };
+
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        ...userFilter,
+        type: 'INCOME',
+        timestamp: {
+          gte: startDateStr,
+          lte: endDateStr,
+        },
+      },
+    });
+
+    return transactions.reduce((sum, t) => sum + t.amount, 0);
   }
 
   private async getMemberPerformance(
@@ -138,11 +166,6 @@ export class DashboardService {
     startDateStr: string,
     endDateStr: string,
   ): Promise<MemberPerformanceDto[]> {
-    // Only admins see member performance
-    if (userRole !== Role.ADMIN) {
-      return [];
-    }
-
     const members = await this.prisma.user.findMany({
       where: { role: Role.MEMBER, isActive: true },
       select: { id: true, name: true },
@@ -160,13 +183,14 @@ export class DashboardService {
           },
           _sum: { amount: true },
         }),
+        // Count completed tasks - INCLUDE archived tasks
         this.prisma.task.count({
           where: {
             OR: [{ assigneeId: member.id }, { creatorId: member.id }],
             status: TaskStatus.COMPLETED,
-            createdAt: {
-              gte: new Date(startDateStr),
-              lte: new Date(endDateStr),
+            completedAt: {
+              gte: new Date(startDateStr + 'T00:00:00Z'),
+              lte: new Date(endDateStr + 'T23:59:59Z'),
             },
           },
         }),
@@ -187,21 +211,24 @@ export class DashboardService {
   private async getRecentActivities(
     userId: string,
     userRole: Role,
-    startDate: Date,
-    endDate: Date,
   ): Promise<ActivityDto[]> {
+    // Always use last 7 days from today, not the filtered date range
+    const now = this.timeService.now();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
     const activities: ActivityDto[] = [];
 
-    // Get recent reports (only from other users for admin)
+    // Get recent reports (last 7 days)
     const reports = await this.prisma.report.findMany({
       where: {
         ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
-        submittedAt: { gte: startDate, lte: endDate },
+        submittedAt: { gte: sevenDaysAgo, lte: now },
       },
       include: { user: { select: { name: true } } },
       orderBy: { submittedAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     reports.forEach((r) => {
@@ -217,18 +244,19 @@ export class DashboardService {
       });
     });
 
+    // Get recent tasks (last 7 days)
     const tasks = await this.prisma.task.findMany({
       where: {
         ...(userRole === Role.ADMIN
           ? { NOT: { creatorId: userId } }
-          : { creatorId: userId }), // Members see their own tasks
-        createdAt: { gte: startDate, lte: endDate },
+          : { creatorId: userId }),
+        createdAt: { gte: sevenDaysAgo, lte: now },
       },
       include: {
         creator: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     tasks.forEach((t) => {
@@ -244,15 +272,15 @@ export class DashboardService {
       });
     });
 
-    // Get recent blog posts (only from other users for admin)
+    // Get recent blog posts (last 7 days)
     const blogs = await this.prisma.blogPost.findMany({
       where: {
         ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
-        publishedAt: { gte: startDate, lte: endDate },
+        publishedAt: { gte: sevenDaysAgo, lte: now },
       },
       include: { user: { select: { name: true } } },
       orderBy: { publishedAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     blogs.forEach((b) => {
