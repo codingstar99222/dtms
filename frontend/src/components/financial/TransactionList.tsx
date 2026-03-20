@@ -9,7 +9,6 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Chip,
   Box,
   Typography,
   Tooltip,
@@ -28,11 +27,9 @@ import {
   Delete as DeleteIcon,
   Visibility as ViewIcon,
   Search as SearchIcon,
-  TrendingUp as IncomeIcon,
-  TrendingDown as ExpenseIcon,
 } from '@mui/icons-material';
 import type { Transaction } from '../../types';
-import { formatDate, formatDateTime, formatCurrency } from '../../utils/formatters';
+import { formatDate, formatCurrency } from '../../utils/formatters';
 import { useAuthStore } from '../../store/authStore';
 
 interface TransactionListProps {
@@ -42,34 +39,28 @@ interface TransactionListProps {
   onView: (transaction: Transaction) => void;
 }
 
-type ChipColor = 'success' | 'error' | 'default' | 'primary' | 'secondary' | 'info' | 'warning';
-
-const getTypeColor = (type: string): ChipColor => {
-  return type === 'INCOME' ? 'success' : 'error';
-};
-
-const getTypeIcon = (type: string) => {
-  return type === 'INCOME' ? <IncomeIcon /> : <ExpenseIcon />;
-};
-
-const TransactionList = ({ 
-  transactions, 
-  onEdit, 
-  onDelete, 
-  onView 
-}: TransactionListProps) => {
+const TransactionList = ({ transactions, onEdit, onDelete, onView }: TransactionListProps) => {
   const { user } = useAuthStore();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
 
-  const filteredTransactions = transactions.filter(t => {
-    const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const isAdmin = user?.role === 'ADMIN';
+  console.log('📋 TransactionList received:', transactions);
+  console.log('📋 TransactionList count:', transactions.length);
+  const sources = Array.from(
+    new Set(transactions.map((t) => t.source).filter(Boolean))
+  ) as string[];
+
+  const filteredTransactions = transactions.filter((t) => {
+    const matchesSearch =
+      t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.taskTitle?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === 'all' || t.type === typeFilter;
-    return matchesSearch && matchesType;
+      (t.source?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (t.paymentMethod?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    const matchesSource = sourceFilter === 'all' || t.source === sourceFilter;
+    return matchesSearch && matchesSource;
   });
 
   const paginatedTransactions = filteredTransactions.slice(
@@ -77,20 +68,11 @@ const TransactionList = ({
     page * rowsPerPage + rowsPerPage
   );
 
-  const handleChangePage = (_: unknown, newPage: number) => {
-    setPage(newPage);
-  };
-
+  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
-
-  const handleTypeFilterChange = (event: SelectChangeEvent) => {
-    setTypeFilter(event.target.value);
-  };
-
-  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <Paper sx={{ width: '100%', overflow: 'hidden' }}>
@@ -99,7 +81,7 @@ const TransactionList = ({
           <TextField
             fullWidth
             variant="outlined"
-            placeholder="Search transactions by description, user, or task..."
+            placeholder="Search by description, member, source, or payment method..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             InputProps={{
@@ -110,18 +92,23 @@ const TransactionList = ({
               ),
             }}
           />
-          <FormControl sx={{ minWidth: 150 }}>
-            <InputLabel>Type</InputLabel>
-            <Select
-              value={typeFilter}
-              label="Type"
-              onChange={handleTypeFilterChange}
-            >
-              <MenuItem value="all">All</MenuItem>
-              <MenuItem value="INCOME">Income</MenuItem>
-              <MenuItem value="EXPENSE">Expense</MenuItem>
-            </Select>
-          </FormControl>
+          {isAdmin && sources.length > 0 && (
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Source</InputLabel>
+              <Select
+                value={sourceFilter}
+                label="Source"
+                onChange={(e: SelectChangeEvent) => setSourceFilter(e.target.value)}
+              >
+                <MenuItem value="all">All Sources</MenuItem>
+                {sources.map((source) => (
+                  <MenuItem key={source} value={source}>
+                    {source}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
         </Stack>
       </Box>
 
@@ -130,38 +117,39 @@ const TransactionList = ({
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
-              <TableCell>User</TableCell>
-              <TableCell>Type</TableCell>
+              {isAdmin && <TableCell>Member</TableCell>}
+              <TableCell>Source</TableCell>
+              <TableCell>Payment Method</TableCell>
               <TableCell>Description</TableCell>
-              <TableCell>Task</TableCell>
               <TableCell align="right">Amount</TableCell>
               <TableCell align="center">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {paginatedTransactions.map((transaction) => (
-              <TableRow key={transaction.id} hover sx={{ cursor: 'pointer' }} onClick={() => onView(transaction)}>
+              <TableRow
+                key={transaction.id}
+                hover
+                onClick={() => onView(transaction)}
+                sx={{ cursor: 'pointer' }}
+              >
                 <TableCell>
-                  <Tooltip title={formatDateTime(transaction.timestamp)}>
+                  <Tooltip title={formatDate(transaction.timestamp)}>
                     <span>{formatDate(transaction.timestamp)}</span>
                   </Tooltip>
                 </TableCell>
+                {isAdmin && (
+                  <TableCell>
+                    <Typography variant="body2">{transaction.userName}</Typography>
+                  </TableCell>
+                )}
+                <TableCell>{transaction.source || '-'}</TableCell>
+                <TableCell>{transaction.paymentMethod || '-'}</TableCell>
                 <TableCell>
-                  <Typography variant="body2">{transaction.userName}</Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    icon={getTypeIcon(transaction.type)}
-                    label={transaction.type}
-                    color={getTypeColor(transaction.type)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      maxWidth: 250,
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      maxWidth: 200,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -170,26 +158,15 @@ const TransactionList = ({
                     {transaction.description}
                   </Typography>
                 </TableCell>
-                <TableCell>
-                  {transaction.taskTitle ? (
-                    <Typography variant="body2">{transaction.taskTitle}</Typography>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">-</Typography>
-                  )}
-                </TableCell>
                 <TableCell align="right">
-                  <Typography 
-                    variant="body2" 
-                    fontWeight="bold"
-                    color={transaction.type === 'INCOME' ? 'success.main' : 'error.main'}
-                  >
-                    {transaction.type === 'INCOME' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                    +{formatCurrency(transaction.amount)}
                   </Typography>
                 </TableCell>
                 <TableCell align="center">
                   <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
                     <Tooltip title="View">
-                      <IconButton 
+                      <IconButton
                         size="small"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -199,11 +176,10 @@ const TransactionList = ({
                         <ViewIcon />
                       </IconButton>
                     </Tooltip>
-                    
                     {isAdmin && (
                       <>
                         <Tooltip title="Edit">
-                          <IconButton 
+                          <IconButton
                             size="small"
                             color="primary"
                             onClick={(e) => {
@@ -215,7 +191,7 @@ const TransactionList = ({
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete">
-                          <IconButton 
+                          <IconButton
                             size="small"
                             color="error"
                             onClick={(e) => {
@@ -232,15 +208,6 @@ const TransactionList = ({
                 </TableCell>
               </TableRow>
             ))}
-            {paginatedTransactions.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 3 }}>
-                  <Typography color="text.secondary">
-                    No transactions found
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </TableContainer>

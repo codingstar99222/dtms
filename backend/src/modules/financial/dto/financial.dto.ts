@@ -4,7 +4,6 @@ import {
   IsNumber,
   IsString,
   IsOptional,
-  IsUUID,
   IsDateString,
   Min,
 } from 'class-validator';
@@ -21,24 +20,24 @@ export class CreateTransactionDto {
   @IsString()
   description: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
-  taskId?: string;
+  source?: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
-  userId?: string; // For admin creating transactions for others
+  paymentMethod?: string;
 
-  @IsDateString()
+  @IsString()
+  @IsOptional()
+  userId?: string;
+
+  @IsString()
   @IsOptional()
   timestamp?: string;
 }
 
 export class UpdateTransactionDto {
-  @IsEnum(TransactionType)
-  @IsOptional()
-  type?: TransactionType;
-
   @IsNumber()
   @Min(0)
   @IsOptional()
@@ -48,9 +47,13 @@ export class UpdateTransactionDto {
   @IsOptional()
   description?: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
-  taskId?: string;
+  source?: string;
+
+  @IsString()
+  @IsOptional()
+  paymentMethod?: string;
 }
 
 export class TransactionResponseDto {
@@ -60,9 +63,9 @@ export class TransactionResponseDto {
   type: TransactionType;
   amount: number;
   description: string;
-  taskId?: string;
-  taskTitle?: string;
-  timestamp: Date;
+  source?: string;
+  paymentMethod?: string;
+  timestamp: string;
 }
 
 export class DateRangeDto {
@@ -77,22 +80,4 @@ export class DateRangeDto {
 
 export class FinancialSummaryDto {
   totalIncome: number;
-  totalExpense: number;
-  netBalance: number;
-  byUser?: UserFinancialSummaryDto[];
-}
-
-export class UserFinancialSummaryDto {
-  userId: string;
-  userName: string;
-  income: number;
-  expense: number;
-  net: number;
-}
-
-export class MonthlyTrendDto {
-  month: string;
-  income: number;
-  expense: number;
-  net: number;
 }

@@ -23,11 +23,11 @@ import { z } from 'zod';
 import type { Transaction } from '../../types';
 
 const transactionSchema = z.object({
-  type: z.enum(['INCOME', 'EXPENSE']),
+  userId: z.string().min(1, 'Member is required'),
   amount: z.number().min(0.01, 'Amount must be greater than 0'),
   description: z.string().min(3, 'Description must be at least 3 characters'),
-  taskId: z.string().optional(),
-  userId: z.string().optional(),
+  source: z.string().optional(),
+  paymentMethod: z.string().optional(),
   timestamp: z.date().optional(),
 });
 
@@ -39,17 +39,15 @@ interface TransactionFormProps {
   onSubmit: (data: TransactionFormData) => Promise<void>;
   transaction?: Transaction | null;
   users?: { id: string; name: string }[];
-  tasks?: { id: string; title: string }[];
   isAdmin?: boolean;
 }
 
-const TransactionForm = ({ 
-  open, 
-  onClose, 
-  onSubmit, 
-  transaction, 
-  users = [], 
-  tasks = [],
+const TransactionForm = ({
+  open,
+  onClose,
+  onSubmit,
+  transaction,
+  users = [],
   isAdmin = false,
 }: TransactionFormProps) => {
   const {
@@ -60,11 +58,11 @@ const TransactionForm = ({
   } = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
     defaultValues: {
-      type: 'INCOME',
+      userId: '',
       amount: undefined,
       description: '',
-      taskId: '',
-      userId: '',
+      source: '',
+      paymentMethod: '',
       timestamp: new Date(),
     },
   });
@@ -72,20 +70,20 @@ const TransactionForm = ({
   useEffect(() => {
     if (transaction) {
       reset({
-        type: transaction.type,
+        userId: transaction.userId,
         amount: transaction.amount,
         description: transaction.description,
-        taskId: transaction.taskId || '',
-        userId: transaction.userId,
+        source: transaction.source || '',
+        paymentMethod: transaction.paymentMethod || '',
         timestamp: new Date(transaction.timestamp),
       });
     } else {
       reset({
-        type: 'INCOME',
+        userId: '',
         amount: undefined,
         description: '',
-        taskId: '',
-        userId: '',
+        source: '',
+        paymentMethod: '',
         timestamp: new Date(),
       });
     }
@@ -93,28 +91,31 @@ const TransactionForm = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        {transaction ? 'Edit Transaction' : 'Add Transaction'}
-      </DialogTitle>
+      <DialogTitle>{transaction ? 'Edit Income Entry' : 'Add Income'}</DialogTitle>
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 6 }}>
-                <Controller
-                  name="type"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth>
-                      <InputLabel>Type</InputLabel>
-                      <Select {...field} label="Type">
-                        <MenuItem value="INCOME">Income</MenuItem>
-                        <MenuItem value="EXPENSE">Expense</MenuItem>
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Grid>
+              {isAdmin && (
+                <Grid size={{ xs: 12 }}>
+                  <Controller
+                    name="userId"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Member</InputLabel>
+                        <Select {...field} label="Member">
+                          {users.map((user) => (
+                            <MenuItem key={user.id} value={user.id}>
+                              {user.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Grid>
+              )}
 
               <Grid size={{ xs: 6 }}>
                 <Controller
@@ -127,7 +128,9 @@ const TransactionForm = ({
                       type="number"
                       fullWidth
                       value={field.value || ''}
-                      onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                      onChange={(e) =>
+                        field.onChange(e.target.value ? Number(e.target.value) : undefined)
+                      }
                       error={!!errors.amount}
                       helperText={errors.amount?.message}
                       InputProps={{ inputProps: { min: 0, step: 0.01 } }}
@@ -136,7 +139,57 @@ const TransactionForm = ({
                   )}
                 />
               </Grid>
+
+              <Grid size={{ xs: 6 }}>
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <Controller
+                    name="timestamp"
+                    control={control}
+                    render={({ field }) => (
+                      <DatePicker
+                        label="Payment Date"
+                        value={field.value || null}
+                        onChange={(date) => field.onChange(date)}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            error: !!errors.timestamp,
+                            helperText: errors.timestamp?.message,
+                          },
+                        }}
+                      />
+                    )}
+                  />
+                </LocalizationProvider>
+              </Grid>
             </Grid>
+
+            <Controller
+              name="source"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Source (Client/Company)"
+                  fullWidth
+                  placeholder="e.g., ABC Corp, Freelance Client"
+                />
+              )}
+            />
+
+            <Controller
+              name="paymentMethod"
+              control={control}
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  label="Payment Method"
+                  fullWidth
+                  placeholder="e.g., Bank Transfer, Payoneer, Crypto, Cash"
+                  helperText="How was this payment received?"
+                />
+              )}
+            />
 
             <Controller
               name="description"
@@ -145,6 +198,8 @@ const TransactionForm = ({
                 <TextField
                   {...field}
                   label="Description"
+                  multiline
+                  rows={2}
                   fullWidth
                   error={!!errors.description}
                   helperText={errors.description?.message}
@@ -152,76 +207,11 @@ const TransactionForm = ({
                 />
               )}
             />
-
-            <Grid container spacing={2}>
-              {isAdmin && (
-                <Grid size={{ xs: 6 }}>
-                  <Controller
-                    name="userId"
-                    control={control}
-                    render={({ field }) => (
-                      <FormControl fullWidth>
-                        <InputLabel>User</InputLabel>
-                        <Select {...field} label="User">
-                          <MenuItem value="">Select User</MenuItem>
-                          {users.map(user => (
-                            <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-                  />
-                </Grid>
-              )}
-
-              <Grid size={{ xs: isAdmin ? 6 : 12 }}>
-                <Controller
-                  name="taskId"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth>
-                      <InputLabel>Related Task</InputLabel>
-                      <Select {...field} label="Related Task">
-                        <MenuItem value="">None</MenuItem>
-                        {tasks.map(task => (
-                          <MenuItem key={task.id} value={task.id}>{task.title}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Grid>
-            </Grid>
-
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <Controller
-                name="timestamp"
-                control={control}
-                render={({ field }) => (
-                  <DatePicker
-                    label="Date"
-                    value={field.value || null}
-                    onChange={(date) => field.onChange(date)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        error: !!errors.timestamp,
-                        helperText: errors.timestamp?.message,
-                      },
-                    }}
-                  />
-                )}
-              />
-            </LocalizationProvider>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>Cancel</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={isSubmitting}
-          >
+          <Button type="submit" variant="contained" disabled={isSubmitting}>
             {isSubmitting ? 'Saving...' : transaction ? 'Update' : 'Add'}
           </Button>
         </DialogActions>
