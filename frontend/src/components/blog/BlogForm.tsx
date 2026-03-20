@@ -14,19 +14,42 @@ import {
   MenuItem,
   Chip,
   Autocomplete,
+  Alert,
 } from '@mui/material';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { BlogPost } from '../../types';
 
+// Define the schema with conditional validation
 const blogSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters'),
   content: z.string().min(20, 'Content must be at least 20 characters'),
   category: z.enum(['TUTORIAL', 'TIP', 'RESOURCE', 'CODE_SNIPPET', 'EXPERIENCE']),
   tags: z.array(z.string()).optional(),
-  url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+  url: z.string().optional(),
   codeSnippet: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // Only validate URL for RESOURCE category
+  if (data.category === 'RESOURCE') {
+    if (!data.url || data.url.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'URL is required for Resource posts',
+        path: ['url'],
+      });
+    } else {
+      try {
+        z.string().url().parse(data.url);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Must be a valid URL',
+          path: ['url'],
+        });
+      }
+    }
+  }
 });
 
 type BlogFormData = z.infer<typeof blogSchema>;
@@ -51,9 +74,10 @@ const BlogForm = ({ open, onClose, onSubmit, post }: BlogFormProps) => {
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<BlogFormData>({
-    resolver: zodResolver(blogSchema),
+    resolver: zodResolver(blogSchema), // Simple - just pass the schema
     defaultValues: {
       title: '',
       content: '',
@@ -63,6 +87,9 @@ const BlogForm = ({ open, onClose, onSubmit, post }: BlogFormProps) => {
       codeSnippet: '',
     },
   });
+
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const selectedCategory = watch('category');
 
   useEffect(() => {
     if (post) {
@@ -174,19 +201,28 @@ const BlogForm = ({ open, onClose, onSubmit, post }: BlogFormProps) => {
               )}
             />
 
-            <Controller
-              name="url"
-              control={control}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  label="Related URL (optional)"
-                  fullWidth
-                  error={!!errors.url}
-                  helperText={errors.url?.message}
-                />
+            {/* URL field with conditional requirement */}
+            <Box>
+              <Controller
+                name="url"
+                control={control}
+                render={({ field }) => (
+                  <TextField
+                    {...field}
+                    label={selectedCategory === 'RESOURCE' ? 'Related URL (required)' : 'Related URL (optional)'}
+                    fullWidth
+                    error={!!errors.url}
+                    helperText={errors.url?.message}
+                    required={selectedCategory === 'RESOURCE'}
+                  />
+                )}
+              />
+              {selectedCategory === 'RESOURCE' && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Resource posts require a valid URL link
+                </Alert>
               )}
-            />
+            </Box>
 
             <Controller
               name="codeSnippet"
