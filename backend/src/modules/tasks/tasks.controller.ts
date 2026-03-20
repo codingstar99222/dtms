@@ -135,13 +135,8 @@ export class TasksController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @AllowAll()
   async remove(@Request() req: RequestWithUser, @Param('id') id: string) {
-    console.log('🗑️ DELETE request received');
-    console.log('🗑️ User:', { id: req.user.id, role: req.user.role });
-    console.log('🗑️ Task ID:', id);
-
     try {
       await this.tasksService.remove(id, req.user.id, req.user.role);
-      console.log('🗑️ Delete successful');
     } catch (error) {
       console.log('🗑️ Delete error:');
       throw error;

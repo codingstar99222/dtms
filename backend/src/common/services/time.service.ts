@@ -58,7 +58,6 @@ export class TimeService {
   getDateRangeStrings(days: number): string[] {
     const dates: string[] = [];
     const today = new Date();
-    console.log('Today in UTC:', today.toISOString().split('T')[0]);
 
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(today);
