@@ -269,12 +269,8 @@ export class ReportsService {
   }
 
   async getMissingReports(userId: string): Promise<MissingReportDto[]> {
-    console.log('🔍 getMissingReports called for userId:', userId);
-
     // Get date strings for the last 7 days
     const last7Days = this.timeService.getDateRangeStrings(7);
-
-    console.log('Checking dates:', last7Days);
 
     const reports = await this.prisma.report.findMany({
       where: {
@@ -284,8 +280,6 @@ export class ReportsService {
         },
       },
     });
-
-    console.log('Found reports:', reports.length);
 
     const existingDates = new Set(reports.map((r) => r.date));
 
@@ -305,8 +299,6 @@ export class ReportsService {
           isMissing: true,
         };
       });
-
-    console.log('Missing days:', missingDays.length);
     return missingDays;
   }
 

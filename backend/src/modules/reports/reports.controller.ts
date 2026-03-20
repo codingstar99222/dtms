@@ -78,7 +78,6 @@ export class ReportsController {
 
   @Get('missing')
   async getMissingReports(@Request() req: RequestWithUser) {
-    console.log('🔥 Missing reports endpoint hit!');
     // Only members can see their missing reports
     if (req.user.role === Role.ADMIN) {
       return []; // Admins don't have missing reports

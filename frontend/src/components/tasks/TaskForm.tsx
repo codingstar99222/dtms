@@ -31,7 +31,7 @@ const taskSchema = z.object({
   rate: z.number().optional(),
   budget: z.number().optional(),
   deadline: z.date().optional(),
-  assigneeId: z.string().optional(),
+  assigneeId: z.string().optional().nullable(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -195,15 +195,14 @@ const TaskForm = ({ open, onClose, onSubmit, task, users = [] }: TaskFormProps) 
                         label="Deadline"
                         value={field.value || null}
                         onChange={(date) => {
-                          if (date) {
-                            // Convert back to YYYY-MM-DD string for backend
-                            const year = date.getFullYear();
-                            const month = String(date.getMonth() + 1).padStart(2, '0');
-                            const day = String(date.getDate()).padStart(2, '0');
-                            field.onChange(`${year}-${month}-${day}`);
-                          } else {
-                            field.onChange(undefined);
-                          }
+                          field.onChange(date); // Store as Date object, not string
+                        }}
+                        slotProps={{
+                          textField: {
+                            fullWidth: true,
+                            error: !!errors.deadline,
+                            helperText: errors.deadline?.message,
+                          },
                         }}
                       />
                     )}

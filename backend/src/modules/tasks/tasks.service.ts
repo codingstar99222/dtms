@@ -31,7 +31,7 @@ interface TaskWithUsers {
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
-  deadline: string | null; // Changed from Date to string
+  deadline: string | null;
   assignee: { name: string } | null;
   creator: { name: string };
 }
@@ -40,13 +40,23 @@ interface TaskWithUsers {
 export class TasksService {
   constructor(
     private prisma: PrismaService,
-    private timeService: TimeService, // Inject TimeService
+    private timeService: TimeService,
   ) {}
 
   async create(
     creatorId: string,
     createTaskDto: CreateTaskDto,
   ): Promise<TaskResponseDto> {
+    // Check if user is admin
+    const user = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { role: true },
+    });
+
+    if (user?.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only admins can create tasks');
+    }
+
     const {
       title,
       description,
@@ -58,14 +68,10 @@ export class TasksService {
       deadline,
     } = createTaskDto;
 
-    // Handle deadline - store as string directly (no Date conversion)
-    let deadlineStr: string | null = null;
-    if (deadline) {
-      // Optional: Validate the date format using TimeService
-      // const { year, month, day } = this.timeService.parseDateString(deadline);
-      // You could do validation here, but store the original string
-      deadlineStr = deadline; // Just use the string directly
-    }
+    // Set initial status based on assignee
+    const initialStatus = assigneeId
+      ? TaskStatus.ASSIGNED // If assigned, go to ASSIGNED (hidden from board)
+      : TaskStatus.CREATED; // If unassigned, go to CREATED (visible on board)
 
     const task = await this.prisma.task.create({
       data: {
@@ -73,52 +79,53 @@ export class TasksService {
         description,
         priority: priority || Priority.MEDIUM,
         creatorId,
-        assigneeId,
+        assigneeId: assigneeId || null,
         client,
         rate,
         budget,
-        deadline: deadlineStr, // Store as string, not Date
-        status: TaskStatus.CREATED,
+        deadline: deadline || null,
+        status: initialStatus,
         createdAt: this.timeService.now(),
       },
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
     return this.toResponseDto(task as TaskWithUsers);
   }
+
   async findAll(
     userId: string,
     userRole: Role,
     filter?: TaskFilterDto,
   ): Promise<TaskResponseDto[]> {
-    interface TaskWhereInput {
-      status?: TaskStatus;
-      assigneeId?: string;
-      creatorId?: string;
-      createdAt?: {
-        gte?: Date;
-        lte?: Date;
-      };
-      OR?: Array<{
-        creatorId?: string;
-        assigneeId?: string;
-      }>;
+    const where: Prisma.TaskWhereInput = {};
+
+    // Role-based filtering
+    if (userRole === Role.ADMIN) {
+      // Admin sees all tasks
+      if (filter?.unassigned) {
+        where.assigneeId = null;
+        where.status = TaskStatus.CREATED;
+      }
+    } else {
+      // Members only see tasks assigned to them (excluding ASSIGNED status from board)
+      where.assigneeId = userId;
+      // Don't filter by status - let the frontend decide what to show
     }
 
-    const where: TaskWhereInput = {};
-
-    // Apply filters
+    // Apply other filters
     if (filter) {
       if (filter.status) where.status = filter.status;
-      if (filter.assigneeId) where.assigneeId = filter.assigneeId;
-      if (filter.creatorId) where.creatorId = filter.creatorId;
+      if (filter.priority) where.priority = filter.priority;
+      if (filter.assigneeId && userRole === Role.ADMIN) {
+        where.assigneeId = filter.assigneeId;
+      }
+      if (filter.creatorId && userRole === Role.ADMIN) {
+        where.creatorId = filter.creatorId;
+      }
 
       if (filter.fromDate || filter.toDate) {
         where.createdAt = {};
@@ -127,25 +134,16 @@ export class TasksService {
       }
     }
 
-    // Non-admins can only see tasks they created or are assigned to
-    if (userRole !== Role.ADMIN) {
-      where.OR = [{ creatorId: userId }, { assigneeId: userId }];
-    }
-
     const tasks = await this.prisma.task.findMany({
       where,
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
       orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
     });
 
-    return (tasks as TaskWithUsers[]).map((task) => this.toResponseDto(task));
+    return tasks.map((task) => this.toResponseDto(task as TaskWithUsers));
   }
 
   async findOne(
@@ -156,12 +154,8 @@ export class TasksService {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
@@ -169,7 +163,6 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    // Check access
     if (
       userRole !== Role.ADMIN &&
       task.creatorId !== userId &&
@@ -195,14 +188,12 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    // Check permission: only admin or creator can update
     if (userRole !== Role.ADMIN && task.creatorId !== userId) {
       throw new ForbiddenException(
         'Only admin or task creator can update tasks',
       );
     }
 
-    // Build update data directly as Prisma expects
     const updateData: Prisma.TaskUpdateInput = {};
 
     if (updateTaskDto.title !== undefined)
@@ -229,14 +220,13 @@ export class TasksService {
       updateData.hoursWorked = updateTaskDto.hoursWorked;
 
     if (updateTaskDto.deadline !== undefined) {
-      updateData.deadline = updateTaskDto.deadline || null; // Store as string directly
+      updateData.deadline = updateTaskDto.deadline || null;
     }
 
     // Handle status transitions
     if (updateTaskDto.status && updateTaskDto.status !== task.status) {
       this.validateStatusTransition(task.status, updateTaskDto.status);
 
-      // Set timestamps based on status using TimeService
       if (updateTaskDto.status === TaskStatus.IN_PROGRESS && !task.startedAt) {
         updateData.startedAt = this.timeService.now();
       } else if (updateTaskDto.status === TaskStatus.COMPLETED) {
@@ -250,12 +240,8 @@ export class TasksService {
       where: { id },
       data: updateData,
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
@@ -276,14 +262,12 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    // Check permission: only admin or creator can assign
     if (userRole !== Role.ADMIN && task.creatorId !== userId) {
       throw new ForbiddenException(
         'Only admin or task creator can assign tasks',
       );
     }
 
-    // Verify assignee exists
     const assignee = await this.prisma.user.findUnique({
       where: { id: assigneeId },
     });
@@ -292,22 +276,19 @@ export class TasksService {
       throw new NotFoundException('Assignee not found');
     }
 
+    // When assigning, move from CREATED to ASSIGNED
+    const newStatus =
+      task.status === TaskStatus.CREATED ? TaskStatus.ASSIGNED : task.status;
+
     const updatedTask = await this.prisma.task.update({
       where: { id },
       data: {
         assigneeId,
-        status:
-          task.status === TaskStatus.CREATED
-            ? TaskStatus.ASSIGNED
-            : task.status,
+        status: newStatus,
       },
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
@@ -323,15 +304,11 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    // Only assignee can start the task
     if (task.assigneeId !== userId) {
       throw new ForbiddenException('Only the assignee can start this task');
     }
 
-    if (
-      task.status !== TaskStatus.ASSIGNED &&
-      task.status !== TaskStatus.CREATED
-    ) {
+    if (task.status !== TaskStatus.ASSIGNED) {
       throw new BadRequestException(
         `Cannot start task with status ${task.status}`,
       );
@@ -341,15 +318,52 @@ export class TasksService {
       where: { id },
       data: {
         status: TaskStatus.IN_PROGRESS,
-        startedAt: this.timeService.now(), // Use TimeService
+        startedAt: this.timeService.now(),
       },
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
+      },
+    });
+
+    return this.toResponseDto(updatedTask as TaskWithUsers);
+  }
+
+  async updateStatus(
+    id: string,
+    userId: string,
+    status: TaskStatus,
+  ): Promise<TaskResponseDto> {
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    if (task.assigneeId !== userId) {
+      throw new ForbiddenException('Only the assignee can update task status');
+    }
+
+    this.validateStatusTransition(task.status, status);
+
+    const updateData: Prisma.TaskUpdateInput = { status };
+
+    if (status === TaskStatus.IN_PROGRESS && !task.startedAt) {
+      updateData.startedAt = this.timeService.now();
+    } else if (status === TaskStatus.COMPLETED) {
+      updateData.completedAt = this.timeService.now();
+    } else if (status === TaskStatus.CANCELLED) {
+      updateData.cancelledAt = this.timeService.now();
+    }
+
+    const updatedTask = await this.prisma.task.update({
+      where: { id },
+      data: updateData,
+      include: {
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
@@ -369,29 +383,19 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    // Only assignee or admin can complete
     if (task.assigneeId !== userId && task.creatorId !== userId) {
       throw new ForbiddenException(
         'Only assignee or creator can complete this task',
       );
     }
 
-    if (
-      task.status !== TaskStatus.IN_PROGRESS &&
-      task.status !== TaskStatus.REVIEW
-    ) {
-      throw new BadRequestException(
-        'Only in-progress or review tasks can be completed',
-      );
+    if (task.status !== TaskStatus.REVIEW) {
+      throw new BadRequestException('Only tasks in review can be completed');
     }
 
-    const updateData: {
-      status: TaskStatus;
-      completedAt: Date;
-      hoursWorked?: number;
-    } = {
+    const updateData: Prisma.TaskUpdateInput = {
       status: TaskStatus.COMPLETED,
-      completedAt: this.timeService.now(), // Use TimeService
+      completedAt: this.timeService.now(),
     };
 
     if (hoursWorked !== undefined) {
@@ -402,12 +406,8 @@ export class TasksService {
       where: { id },
       data: updateData,
       include: {
-        assignee: {
-          select: { name: true },
-        },
-        creator: {
-          select: { name: true },
-        },
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
       },
     });
 
@@ -415,54 +415,46 @@ export class TasksService {
   }
 
   async getDashboardStats(userId: string, userRole: Role) {
-    // Build base where clause with proper Prisma type
     const baseWhere: Prisma.TaskWhereInput = {};
 
     if (userRole !== Role.ADMIN) {
       baseWhere.OR = [{ creatorId: userId }, { assigneeId: userId }];
     }
 
-    // Get today's date as string in YYYY-MM-DD format
     const todayStr = this.timeService.getTodayString();
 
-    // Create typed where clauses
-    const totalWhere: Prisma.TaskWhereInput = { ...baseWhere };
-
-    const pendingWhere: Prisma.TaskWhereInput = {
-      ...baseWhere,
-      status: TaskStatus.CREATED,
-    };
-
-    const inProgressWhere: Prisma.TaskWhereInput = {
-      ...baseWhere,
-      status: TaskStatus.IN_PROGRESS,
-    };
-
-    const completedWhere: Prisma.TaskWhereInput = {
-      ...baseWhere,
-      status: TaskStatus.COMPLETED,
-    };
-
-    // For overdue tasks: deadline string < today's string AND not completed/cancelled
-    const overdueWhere: Prisma.TaskWhereInput = {
-      ...baseWhere,
-      status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
-      deadline: { lt: todayStr }, // Compare strings! "2026-03-19" < "2026-03-20"
-    };
-
-    // Execute all queries in parallel
     const [
       totalTasks,
       pendingTasks,
       inProgressTasks,
       completedTasks,
       overdueTasks,
+      unassignedTasks,
     ] = await Promise.all([
-      this.prisma.task.count({ where: totalWhere }),
-      this.prisma.task.count({ where: pendingWhere }),
-      this.prisma.task.count({ where: inProgressWhere }),
-      this.prisma.task.count({ where: completedWhere }),
-      this.prisma.task.count({ where: overdueWhere }),
+      this.prisma.task.count({ where: baseWhere }),
+      this.prisma.task.count({
+        where: { ...baseWhere, status: TaskStatus.CREATED },
+      }),
+      this.prisma.task.count({
+        where: { ...baseWhere, status: TaskStatus.IN_PROGRESS },
+      }),
+      this.prisma.task.count({
+        where: { ...baseWhere, status: TaskStatus.COMPLETED },
+      }),
+      this.prisma.task.count({
+        where: {
+          ...baseWhere,
+          status: { notIn: [TaskStatus.COMPLETED, TaskStatus.CANCELLED] },
+          deadline: { lt: todayStr },
+        },
+      }),
+      this.prisma.task.count({
+        where: {
+          ...baseWhere,
+          assigneeId: null,
+          status: TaskStatus.CREATED,
+        },
+      }),
     ]);
 
     return {
@@ -471,7 +463,18 @@ export class TasksService {
       inProgressTasks,
       completedTasks,
       overdueTasks,
+      unassignedTasks,
     };
+  }
+
+  async getUnassignedCount(): Promise<{ count: number }> {
+    const count = await this.prisma.task.count({
+      where: {
+        assigneeId: null,
+        status: TaskStatus.CREATED,
+      },
+    });
+    return { count };
   }
 
   private validateStatusTransition(
@@ -484,7 +487,11 @@ export class TasksService {
         TaskStatus.IN_PROGRESS,
         TaskStatus.CANCELLED,
       ],
-      [TaskStatus.ASSIGNED]: [TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED],
+      [TaskStatus.ASSIGNED]: [
+        TaskStatus.IN_PROGRESS,
+        TaskStatus.REVIEW,
+        TaskStatus.CANCELLED,
+      ],
       [TaskStatus.IN_PROGRESS]: [
         TaskStatus.REVIEW,
         TaskStatus.COMPLETED,
@@ -505,7 +512,35 @@ export class TasksService {
       );
     }
   }
+  async remove(id: string, userId: string, userRole: Role): Promise<void> {
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+    });
 
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // Admin can delete any task
+    if (userRole === Role.ADMIN) {
+      await this.prisma.task.delete({ where: { id } });
+      return;
+    }
+
+    // Task owner can delete their own completed or cancelled tasks
+    if (
+      task.assigneeId === userId &&
+      ['COMPLETED', 'CANCELLED'].includes(task.status)
+    ) {
+      await this.prisma.task.delete({ where: { id } });
+      return;
+    }
+
+    // Otherwise, forbidden
+    throw new ForbiddenException(
+      'You do not have permission to delete this task',
+    );
+  }
   private toResponseDto(task: TaskWithUsers): TaskResponseDto {
     return {
       id: task.id,
@@ -525,7 +560,7 @@ export class TasksService {
       startedAt: task.startedAt || undefined,
       completedAt: task.completedAt || undefined,
       cancelledAt: task.cancelledAt || undefined,
-      deadline: task.deadline || undefined, // Format as string
+      deadline: task.deadline || undefined,
     };
   }
 }

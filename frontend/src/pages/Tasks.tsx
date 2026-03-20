@@ -1,31 +1,23 @@
 // frontend/src/pages/Tasks.tsx
 import { useState } from 'react';
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Alert,
-  ToggleButtonGroup,
-  ToggleButton,
-  Stack,
-} from '@mui/material';
-import { Add as AddIcon, ViewModule as BoardIcon, ViewList as ListIcon } from '@mui/icons-material';
+import { Container, Typography, Button, Box, Alert } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksService } from '../services/tasks.service';
 import { usersService } from '../services/users.service';
-import type { CreateTaskDto, UpdateTaskDto } from '../services/tasks.service';
+import type { CreateTaskDto, UnassignedCount, UpdateTaskDto } from '../services/tasks.service';
 import TaskBoard from '../components/tasks/TaskBoard';
-import TaskList from '../components/tasks/TaskList';
+import AdminTaskList from '../components/tasks/AdminTaskList';
 import TaskForm from '../components/tasks/TaskForm';
 import TaskViewDialog from '../components/tasks/TaskViewDialog';
 import AssignDialog from '../components/tasks/AssignDialog';
-import DeleteConfirmDialog from '../components/users/DeleteConfirmDialog';
+import DeleteTaskDialog from '../components/tasks/DeleteTaskDialog';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import type { Task } from '../types';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import type { AxiosError } from 'axios';
+import { useSearchParams } from 'react-router-dom';
 
 interface ErrorResponse {
   message: string;
@@ -39,35 +31,55 @@ interface TaskFormData {
   rate?: number;
   budget?: number;
   deadline?: Date;
-  assigneeId?: string;
+  assigneeId?: string | null;
 }
-
-type ViewMode = 'board' | 'list';
 
 const Tasks = () => {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>('board');
+  const [searchParams] = useSearchParams();
   const [formOpen, setFormOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  // Fetch tasks
-  const { data: tasks = [], isLoading, error } = useQuery<Task[]>({
-    queryKey: ['tasks'],
-    queryFn: () => tasksService.findAll(),
+  const isAdmin = user?.role === 'ADMIN';
+  const filterUnassigned = searchParams.get('filter') === 'unassigned';
+
+  // Fetch unassigned count for admin
+  const { data: unassignedData } = useQuery<UnassignedCount>({
+    queryKey: ['tasks', 'unassigned', 'count'],
+    queryFn: () => tasksService.getUnassignedCount(),
+    enabled: isAdmin,
+    initialData: { count: 0 }, // Add default value
+  });
+
+  // Fetch tasks with role-based filtering
+  const {
+    data: tasks = [],
+    isLoading,
+    error,
+  } = useQuery<Task[]>({
+    queryKey: ['tasks', filterUnassigned ? 'unassigned' : 'all'],
+    queryFn: () =>
+      tasksService.findAll({
+        ...(filterUnassigned && { unassigned: true }),
+      }),
   });
 
   // Fetch users for assignment
   const { data: users = [] } = useQuery({
-    queryKey: ['users'],
-    queryFn: usersService.findAll,
-    enabled: user?.role === 'ADMIN',
+    queryKey: ['users', 'members'], // Add 'members' to query key
+    queryFn: async () => {
+      const allUsers = await usersService.findAll();
+      // Filter to only include MEMBER role
+      return allUsers.filter((user) => user.role === 'MEMBER');
+    },
+    enabled: isAdmin,
   });
 
-  // Create task mutation
+  // Create task mutation (admin only)
   const createMutation = useMutation<Task, AxiosError<ErrorResponse>, CreateTaskDto>({
     mutationFn: (data: CreateTaskDto) => tasksService.create(data),
     onSuccess: () => {
@@ -80,8 +92,12 @@ const Tasks = () => {
     },
   });
 
-  // Update task mutation
-  const updateMutation = useMutation<Task, AxiosError<ErrorResponse>, { id: string; data: UpdateTaskDto }>({
+  // Update task mutation (admin only)
+  const updateMutation = useMutation<
+    Task,
+    AxiosError<ErrorResponse>,
+    { id: string; data: UpdateTaskDto }
+  >({
     mutationFn: ({ id, data }: { id: string; data: UpdateTaskDto }) =>
       tasksService.update(id, data),
     onSuccess: () => {
@@ -95,12 +111,12 @@ const Tasks = () => {
     },
   });
 
-  // Delete task mutation
+  // Delete task mutation (admin only)
   const deleteMutation = useMutation<void, AxiosError<ErrorResponse>, string>({
     mutationFn: (id: string) => tasksService.remove(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      setDeleteDialogOpen(false);
+      setDeleteTaskDialogOpen(false);
       setSelectedTask(null);
       toast.success('Task deleted successfully');
     },
@@ -109,8 +125,12 @@ const Tasks = () => {
     },
   });
 
-  // Assign task mutation
-  const assignMutation = useMutation<Task, AxiosError<ErrorResponse>, { id: string; assigneeId: string }>({
+  // Assign task mutation (admin only)
+  const assignMutation = useMutation<
+    Task,
+    AxiosError<ErrorResponse>,
+    { id: string; assigneeId: string }
+  >({
     mutationFn: ({ id, assigneeId }: { id: string; assigneeId: string }) =>
       tasksService.assign(id, assigneeId),
     onSuccess: () => {
@@ -124,7 +144,23 @@ const Tasks = () => {
     },
   });
 
-  // Start task mutation
+  // Status update mutation (for members - drag and drop)
+  const statusUpdateMutation = useMutation<
+    Task,
+    AxiosError<ErrorResponse>,
+    { id: string; status: string }
+  >({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      tasksService.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    onError: (error: AxiosError<ErrorResponse>) => {
+      toast.error(error.response?.data?.message || 'Failed to update task status');
+    },
+  });
+
+  // Start task mutation (members)
   const startMutation = useMutation<Task, AxiosError<ErrorResponse>, string>({
     mutationFn: (id: string) => tasksService.startTask(id),
     onSuccess: () => {
@@ -136,8 +172,12 @@ const Tasks = () => {
     },
   });
 
-  // Complete task mutation
-  const completeMutation = useMutation<Task, AxiosError<ErrorResponse>, { id: string; hoursWorked?: number }>({
+  // Complete task mutation (members)
+  const completeMutation = useMutation<
+    Task,
+    AxiosError<ErrorResponse>,
+    { id: string; hoursWorked?: number }
+  >({
     mutationFn: ({ id, hoursWorked }: { id: string; hoursWorked?: number }) =>
       tasksService.completeTask(id, hoursWorked),
     onSuccess: () => {
@@ -150,11 +190,19 @@ const Tasks = () => {
   });
 
   const handleCreate = () => {
+    if (!isAdmin) {
+      toast.error('Only admins can create tasks');
+      return;
+    }
     setSelectedTask(null);
     setFormOpen(true);
   };
 
   const handleEdit = (task: Task) => {
+    if (!isAdmin) {
+      toast.error('Only admins can edit tasks');
+      return;
+    }
     setSelectedTask(task);
     setFormOpen(true);
   };
@@ -165,16 +213,32 @@ const Tasks = () => {
   };
 
   const handleAssign = (task: Task) => {
+    if (!isAdmin) {
+      toast.error('Only admins can assign tasks');
+      return;
+    }
     setSelectedTask(task);
     setAssignDialogOpen(true);
   };
 
   const handleDelete = (taskId: string) => {
-    const task = tasks.find(t => t.id === taskId);
-    if (task) {
-      setSelectedTask(task);
-      setDeleteDialogOpen(true);
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const canDelete =
+      isAdmin || (task.assigneeId === user?.id && ['COMPLETED', 'CANCELLED'].includes(task.status));
+
+    if (!canDelete) {
+      toast.error('You can only delete your own completed or cancelled tasks');
+      return;
     }
+
+    setSelectedTask(task);
+    setDeleteTaskDialogOpen(true);
+  };
+
+  const handleStatusChange = (taskId: string, newStatus: string) => {
+    statusUpdateMutation.mutate({ id: taskId, status: newStatus });
   };
 
   const handleStart = (task: Task) => {
@@ -182,12 +246,11 @@ const Tasks = () => {
   };
 
   const handleComplete = (task: Task) => {
-    // Prompt for hours worked
     const hours = prompt('Enter hours worked:', '0');
     if (hours !== null) {
-      completeMutation.mutate({ 
-        id: task.id, 
-        hoursWorked: parseFloat(hours) || undefined 
+      completeMutation.mutate({
+        id: task.id,
+        hoursWorked: parseFloat(hours) || undefined,
       });
     }
   };
@@ -200,10 +263,9 @@ const Tasks = () => {
       client: data.client,
       rate: data.rate,
       budget: data.budget,
-      deadline: data.deadline?.toISOString().split('T')[0],
-      assigneeId: data.assigneeId,
+      deadline: data.deadline ? data.deadline.toISOString().split('T')[0] : undefined,
+      assigneeId: data.assigneeId && data.assigneeId.trim() !== '' ? data.assigneeId : undefined,
     };
-
     if (selectedTask) {
       updateMutation.mutate({ id: selectedTask.id, data: taskData });
     } else {
@@ -227,7 +289,7 @@ const Tasks = () => {
     setFormOpen(false);
     setViewDialogOpen(false);
     setAssignDialogOpen(false);
-    setDeleteDialogOpen(false);
+    setDeleteTaskDialogOpen(false);
     setSelectedTask(null);
   };
 
@@ -239,33 +301,29 @@ const Tasks = () => {
         <Typography variant="h4" component="h1">
           Task Management
         </Typography>
-        
-        <Stack direction="row" spacing={2}>
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(_, value) => value && setViewMode(value)}
-            size="small"
-          >
-            <ToggleButton value="board">
-              <BoardIcon sx={{ mr: 1 }} />
-              Board
-            </ToggleButton>
-            <ToggleButton value="list">
-              <ListIcon sx={{ mr: 1 }} />
-              List
-            </ToggleButton>
-          </ToggleButtonGroup>
 
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-          >
+        {isAdmin && (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
             Create Task
           </Button>
-        </Stack>
+        )}
       </Box>
+
+      {/* Unassigned tasks alert for admin */}
+      {isAdmin && (unassignedData?.count ?? 0) > 0 && (
+        <Alert
+          severity="info"
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" onClick={handleCreate}>
+              Create Task
+            </Button>
+          }
+        >
+          You have {unassignedData?.count ?? 0} unassigned task
+          {(unassignedData?.count ?? 0) > 1 ? 's' : ''} waiting for assignment.
+        </Alert>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -273,56 +331,55 @@ const Tasks = () => {
         </Alert>
       )}
 
-      {viewMode === 'board' ? (
-        <TaskBoard
+      {/* Role-based view */}
+      {isAdmin ? (
+        <AdminTaskList
           tasks={tasks}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onAssign={handleAssign}
-          onStart={handleStart}
-          onComplete={handleComplete}
           onView={handleView}
+          filterUnassigned={filterUnassigned}
         />
       ) : (
-        <TaskList
+        <TaskBoard
           tasks={tasks}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onAssign={handleAssign}
+          onStatusChange={handleStatusChange}
           onStart={handleStart}
           onComplete={handleComplete}
           onView={handleView}
+          onDelete={handleDelete}
         />
       )}
 
-      <TaskForm
-        open={formOpen}
-        onClose={handleCloseDialogs}
-        onSubmit={handleFormSubmit}
-        task={selectedTask}
-        users={users}
-      />
+      {/* Dialogs */}
+      {isAdmin && (
+        <>
+          <TaskForm
+            open={formOpen}
+            onClose={handleCloseDialogs}
+            onSubmit={handleFormSubmit}
+            task={selectedTask}
+            users={users}
+          />
+          <AssignDialog
+            open={assignDialogOpen}
+            onClose={handleCloseDialogs}
+            onConfirm={handleAssignConfirm}
+            taskTitle={selectedTask?.title || ''}
+            users={users}
+          />
+        </>
+      )}
 
-      <TaskViewDialog
-        open={viewDialogOpen}
-        onClose={handleCloseDialogs}
-        task={selectedTask}
-      />
-
-      <AssignDialog
-        open={assignDialogOpen}
-        onClose={handleCloseDialogs}
-        onConfirm={handleAssignConfirm}
-        taskTitle={selectedTask?.title || ''}
-        users={users}
-      />
-
-      <DeleteConfirmDialog
-        open={deleteDialogOpen}
+      <DeleteTaskDialog
+        open={deleteTaskDialogOpen}
         onClose={handleCloseDialogs}
         onConfirm={handleDeleteConfirm}
-        userName={`task "${selectedTask?.title}"`}
+        taskTitle={selectedTask?.title || ''}
       />
+      {/* View dialog - available to all */}
+      <TaskViewDialog open={viewDialogOpen} onClose={handleCloseDialogs} task={selectedTask} />
     </Container>
   );
 };

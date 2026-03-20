@@ -1,4 +1,4 @@
-// frontend/src/components/users/DeleteConfirmDialog.tsx
+// frontend/src/components/tasks/DeleteTaskDialog.tsx
 import {
   Dialog,
   DialogTitle,
@@ -8,20 +8,20 @@ import {
   Button,
 } from '@mui/material';
 
-interface DeleteConfirmDialogProps {
+interface DeleteTaskDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  userName: string;
+  taskTitle: string;
 }
 
-const DeleteConfirmDialog = ({ open, onClose, onConfirm, userName }: DeleteConfirmDialogProps) => {
+const DeleteTaskDialog = ({ open, onClose, onConfirm, taskTitle }: DeleteTaskDialogProps) => {
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Delete User</DialogTitle>
+      <DialogTitle>Delete Task</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          Are you sure you want to delete user "{userName}"? This action cannot be undone.
+          Are you sure you want to delete task "{taskTitle}"? This action cannot be undone.
         </DialogContentText>
       </DialogContent>
       <DialogActions>
@@ -34,4 +34,4 @@ const DeleteConfirmDialog = ({ open, onClose, onConfirm, userName }: DeleteConfi
   );
 };
 
-export default DeleteConfirmDialog;
+export default DeleteTaskDialog;

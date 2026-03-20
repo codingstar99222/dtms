@@ -121,11 +121,14 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ### Task Management
 
-- Kanban and list views
-- Status workflow:
-  - To Do → Assigned → In Progress → Review → Completed/Cancelled
-- Task ownership and permission rules
-- Integrated time tracking
+- Role-based workflow: Admins create/assign tasks, members work on them
+- Kanban board (members): To Do → In Progress → Review → Completed/Cancelled
+- Admin table view: Full CRUD with filters for status, priority, assignee
+- Permission rules:
+  - Admins: Full control (create, edit, assign, delete any task)
+  - Members: Start, review, complete, cancel own tasks; delete own completed/cancelled only
+- Unassigned tracking: Admin dashboard shows count of unassigned tasks
+- Time tracking: Hours logged when completing tasks
 
 ### Time Tracking
 
