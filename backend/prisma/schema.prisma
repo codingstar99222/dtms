@@ -20,7 +20,6 @@ model User {
   blogPosts     BlogPost[]
   assignedTasks Task[]    @relation("AssignedTasks")
   createdTasks  Task[]    @relation("CreatedTasks")
-  timeEntries   TimeEntry[]
   transactions  Transaction[]
 }
 
@@ -83,30 +82,10 @@ model Task {
   cancelledAt DateTime?
   deadline    String?
   
-  timeEntries TimeEntry[]
-  
   @@index([assigneeId])
   @@index([status])
   @@index([creatorId])
   @@index([deadline])
-}
-
-model TimeEntry {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  taskId      String?
-  task        Task?    @relation(fields: [taskId], references: [id])
-  startTime   DateTime
-  endTime     DateTime?
-  duration    Int?
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([userId])
-  @@index([startTime])
-  @@index([taskId])
 }
 
 model Transaction {
@@ -116,8 +95,8 @@ model Transaction {
   type          TransactionType
   amount        Float
   description   String
-  source        String?         // Company/Client name
-  paymentMethod String?         // Free text - bank, payoneer, crypto, etc.
+  source        String?
+  paymentMethod String?
   timestamp     String        
   
   @@index([userId])

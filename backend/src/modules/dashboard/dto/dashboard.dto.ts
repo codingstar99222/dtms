@@ -70,7 +70,6 @@ export class TrendPoint {
   date: string;
   reports: number;
   tasks: number;
-  hours: number;
   income: number;
 }
 
@@ -78,9 +77,7 @@ export class MonthlyTrendPoint {
   month: string;
   reports: number;
   tasks: number;
-  hours: number;
   income: number;
-  expenses: number;
   net: number;
 }
 

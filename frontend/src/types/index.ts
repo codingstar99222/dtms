@@ -115,25 +115,6 @@ export interface FinancialSummary {
   netBalance: number;
 }
 
-// Time Tracking
-export interface TimeEntry {
-  id: string;
-  userId: string;
-  userName: string;
-  taskId?: string;
-  taskTitle?: string;
-  startTime: string;
-  endTime?: string;
-  duration?: number;
-  description?: string;
-}
-
-export interface ActiveTimer {
-  isActive: boolean;
-  entry?: TimeEntry;
-  elapsedMinutes?: number;
-}
-
 // Dashboard
 export interface DashboardOverview {
   totalMembers: number;

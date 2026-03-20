@@ -10,7 +10,6 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { BlogModule } from './modules/blog/blog.module';
 import { FinancialModule } from './modules/financial/financial.module';
-import { TimeTrackingModule } from './modules/time-tracking/time-tracking.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -36,7 +35,6 @@ import { TimeModule } from './common/services/time.module';
     TasksModule,
     BlogModule,
     FinancialModule,
-    TimeTrackingModule,
     DashboardModule,
   ],
   providers: [
