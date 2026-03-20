@@ -11,10 +11,7 @@ import {
   Paper,
   Grid,
 } from '@mui/material';
-import {
-  TrendingUp as IncomeIcon,
-  TrendingDown as ExpenseIcon,
-} from '@mui/icons-material';
+import { TrendingUp as IncomeIcon } from '@mui/icons-material';
 import type { Transaction } from '../../types';
 import { formatDateTime, formatCurrency } from '../../utils/formatters';
 
@@ -31,44 +28,51 @@ const TransactionViewDialog = ({ open, onClose, transaction }: TransactionViewDi
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          Transaction Details
-          <Chip
-            icon={transaction.type === 'INCOME' ? <IncomeIcon /> : <ExpenseIcon />}
-            label={transaction.type}
-            color={transaction.type === 'INCOME' ? 'success' : 'error'}
-            size="small"
-          />
+          Income Details
+          <Chip icon={<IncomeIcon />} label="INCOME" color="success" size="small" />
         </Box>
       </DialogTitle>
       <DialogContent dividers>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-            <Typography variant="h5" gutterBottom align="center">
-              <span style={{ color: transaction.type === 'INCOME' ? '#4caf50' : '#f44336' }}>
-                {transaction.type === 'INCOME' ? '+' : '-'}{formatCurrency(transaction.amount)}
-              </span>
+            <Typography variant="h5" gutterBottom align="center" color="success.main">
+              +{formatCurrency(transaction.amount)}
             </Typography>
           </Paper>
 
           <Grid container spacing={2}>
             <Grid size={{ xs: 6 }}>
-              <Typography variant="caption" color="text.secondary">User</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Date & Time
+              </Typography>
+              <Typography variant="body2">{formatDateTime(transaction.timestamp)}</Typography>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography variant="caption" color="text.secondary">
+                Member
+              </Typography>
               <Typography variant="body2">{transaction.userName}</Typography>
             </Grid>
             <Grid size={{ xs: 6 }}>
-              <Typography variant="caption" color="text.secondary">Date & Time</Typography>
-              <Typography variant="body2">{formatDateTime(transaction.timestamp)}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Source
+              </Typography>
+              <Typography variant="body2">{transaction.source || '-'}</Typography>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <Typography variant="caption" color="text.secondary">
+                Payment Method
+              </Typography>
+              <Typography variant="body2">{transaction.paymentMethod || '-'}</Typography>
             </Grid>
             <Grid size={{ xs: 12 }}>
-              <Typography variant="caption" color="text.secondary">Description</Typography>
-              <Typography variant="body2">{transaction.description}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Description
+              </Typography>
+              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                {transaction.description}
+              </Typography>
             </Grid>
-            {transaction.taskTitle && (
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="caption" color="text.secondary">Related Task</Typography>
-                <Typography variant="body2">{transaction.taskTitle}</Typography>
-              </Grid>
-            )}
           </Grid>
         </Box>
       </DialogContent>

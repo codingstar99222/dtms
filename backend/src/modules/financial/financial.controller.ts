@@ -12,8 +12,6 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  ParseIntPipe,
-  DefaultValuePipe,
 } from '@nestjs/common';
 import { FinancialService } from './financial.service';
 import {
@@ -41,6 +39,7 @@ export class FinancialController {
   constructor(private readonly financialService: FinancialService) {}
 
   @Post('transactions')
+  @Roles(Role.ADMIN)
   async createTransaction(
     @Request() req: RequestWithUser,
     @Body() createDto: CreateTransactionDto,
@@ -95,28 +94,6 @@ export class FinancialController {
     @Query() dateRange?: DateRangeDto,
   ) {
     return this.financialService.getUserSummary(req.user.id, dateRange);
-  }
-
-  @Get('summary/users')
-  @Roles(Role.ADMIN)
-  async getAllUsersSummary(
-    @Request() req: RequestWithUser,
-    @Query() dateRange?: DateRangeDto,
-  ) {
-    return this.financialService.getAllUsersSummary(req.user.role, dateRange);
-  }
-
-  @Get('trends/monthly')
-  async getMonthlyTrends(
-    @Request() req: RequestWithUser,
-    @Query('year', new DefaultValuePipe(new Date().getFullYear()), ParseIntPipe)
-    year: number,
-  ) {
-    return this.financialService.getMonthlyTrends(
-      req.user.id,
-      req.user.role,
-      year,
-    );
   }
 
   @Get('summary/user/:userId')

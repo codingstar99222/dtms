@@ -24,6 +24,15 @@ export class DashboardService {
     private timeService: TimeService,
   ) {}
 
+  private getWeekStringFromDateStr(dateStr: string): string {
+    const date = new Date(dateStr + 'T12:00:00Z');
+    const firstDay = new Date(date);
+    firstDay.setUTCDate(date.getUTCDate() - date.getUTCDay());
+    const lastDay = new Date(firstDay);
+    lastDay.setUTCDate(firstDay.getUTCDate() + 6);
+
+    return `${this.timeService.formatDate(firstDay)} - ${this.timeService.formatDate(lastDay)}`;
+  }
   async getDashboardSummary(
     userId: string,
     userRole: Role,
@@ -145,7 +154,7 @@ export class DashboardService {
       pendingReports,
       activeTasks,
       totalEarnings: financials.income,
-      totalExpenses: financials.expenses,
+      totalExpenses: 0, // No expenses
       netBalance: financials.net,
       totalHours: (totalHours._sum.duration || 0) / 60,
     };
@@ -159,22 +168,24 @@ export class DashboardService {
   ) {
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
 
+    // Convert dates to strings for comparison
+    const startDateStr = this.timeService.formatDate(startDate);
+    const endDateStr = this.timeService.formatDate(endDate);
+
     const transactions = await this.prisma.transaction.findMany({
       where: {
         ...userFilter,
-        timestamp: { gte: startDate, lte: endDate },
+        type: 'INCOME',
+        timestamp: {
+          gte: startDateStr,
+          lte: endDateStr,
+        },
       },
     });
 
-    const income = transactions
-      .filter((t) => t.type === TransactionType.INCOME)
-      .reduce((sum, t) => sum + t.amount, 0);
+    const income = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-    const expenses = transactions
-      .filter((t) => t.type === TransactionType.EXPENSE)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    return { income, expenses, net: income - expenses };
+    return { income, expenses: 0, net: income };
   }
 
   private async getTrends(
@@ -212,7 +223,10 @@ export class DashboardService {
       this.prisma.transaction.findMany({
         where: {
           ...userFilter,
-          timestamp: { gte: startDate, lte: endDate },
+          timestamp: {
+            gte: this.timeService.formatDate(startDate),
+            lte: this.timeService.formatDate(endDate),
+          },
         },
         select: { timestamp: true, amount: true, type: true },
       }),
@@ -308,22 +322,25 @@ export class DashboardService {
 
     // Aggregate transactions
     transactions.forEach((t) => {
-      const dateStr = this.timeService.formatDate(t.timestamp);
-      const weekStr = this.getWeekString(t.timestamp);
-      const monthStr = t.timestamp.toLocaleString('default', {
-        month: 'short',
-        year: 'numeric',
-      });
+      const timestamp = t.timestamp as string;
+      const dateStr = t.timestamp; // Already a string, no need to format
+      const weekStr = this.getWeekStringFromDateStr(t.timestamp);
+      const monthStr = new Date(timestamp + 'T12:00:00Z').toLocaleString(
+        'default',
+        {
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        },
+      );
 
       if (t.type === TransactionType.INCOME) {
         dailyMap.get(dateStr)!.income += t.amount;
         weeklyMap.get(weekStr)!.income += t.amount;
         monthlyMap.get(monthStr)!.income += t.amount;
         monthlyMap.get(monthStr)!.net += t.amount;
-      } else {
-        monthlyMap.get(monthStr)!.expenses += t.amount;
-        monthlyMap.get(monthStr)!.net -= t.amount;
       }
+      // Remove expense handling
     });
 
     return {
@@ -406,16 +423,15 @@ export class DashboardService {
       const transactions = await this.prisma.transaction.findMany({
         where: {
           userId: member.id,
-          timestamp: { gte: startDate, lte: endDate },
+          timestamp: {
+            gte: this.timeService.formatDate(startDate),
+            lte: this.timeService.formatDate(endDate),
+          },
         },
       });
 
       const earned = transactions
         .filter((t) => t.type === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const expenses = transactions
-        .filter((t) => t.type === TransactionType.EXPENSE)
         .reduce((sum, t) => sum + t.amount, 0);
 
       performers.push({
@@ -444,8 +460,8 @@ export class DashboardService {
         },
         financial: {
           earned,
-          expenses,
-          net: earned - expenses,
+          expenses: 0,
+          net: earned,
         },
       });
     }

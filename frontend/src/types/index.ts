@@ -101,11 +101,11 @@ export interface Transaction {
   id: string;
   userId: string;
   userName: string;
-  type: TransactionType;
+  type: 'INCOME';
   amount: number;
   description: string;
-  taskId?: string;
-  taskTitle?: string;
+  source?: string;
+  paymentMethod?: string;
   timestamp: string;
 }
 

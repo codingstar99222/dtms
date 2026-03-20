@@ -49,11 +49,11 @@ model BlogPost {
   userId      String
   user        User           @relation(fields: [userId], references: [id])
   title       String
-  content     String         // Removed @db.Text
+  content     String
   category    BlogCategory
   tags        String         @default("[]")
   url         String?
-  codeSnippet String?        // Removed @db.Text
+  codeSnippet String?
   views       Int            @default(0)
   publishedAt DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -66,7 +66,7 @@ model BlogPost {
 model Task {
   id          String       @id @default(cuid())
   title       String
-  description String       // Removed @db.Text
+  description String
   status      TaskStatus   @default(CREATED)
   priority    Priority     @default(MEDIUM)
   assigneeId  String?
@@ -83,9 +83,7 @@ model Task {
   cancelledAt DateTime?
   deadline    String?
   
-  // Added opposite relations
   timeEntries TimeEntry[]
-  transactions Transaction[]
   
   @@index([assigneeId])
   @@index([status])
@@ -112,19 +110,18 @@ model TimeEntry {
 }
 
 model Transaction {
-  id          String        @id @default(cuid())
-  userId      String
-  user        User          @relation(fields: [userId], references: [id])
-  type        TransactionType
-  amount      Float
-  description String
-  taskId      String?
-  task        Task?         @relation(fields: [taskId], references: [id])
-  timestamp   DateTime      @default(now())
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id])
+  type          TransactionType
+  amount        Float
+  description   String
+  source        String?         // Company/Client name
+  paymentMethod String?         // Free text - bank, payoneer, crypto, etc.
+  timestamp     String        
   
   @@index([userId])
   @@index([timestamp])
-  @@index([taskId])
   @@index([type])
 }
 
@@ -165,5 +162,4 @@ enum Priority {
 
 enum TransactionType {
   INCOME
-  EXPENSE
 }

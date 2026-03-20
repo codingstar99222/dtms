@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -11,8 +12,6 @@ import {
   TransactionResponseDto,
   DateRangeDto,
   FinancialSummaryDto,
-  UserFinancialSummaryDto,
-  MonthlyTrendDto,
 } from './dto/financial.dto';
 import { TransactionType, Role, Prisma } from '@prisma/client';
 
@@ -22,14 +21,12 @@ interface TransactionWithDetails {
   type: TransactionType;
   amount: number;
   description: string;
-  taskId: string | null;
-  timestamp: Date;
+  source: string | null;
+  paymentMethod: string | null;
+  timestamp: string;
   user: {
     name: string;
   };
-  task: {
-    title: string;
-  } | null;
 }
 
 @Injectable()
@@ -41,29 +38,26 @@ export class FinancialService {
     userRole: Role,
     createDto: CreateTransactionDto,
   ): Promise<TransactionResponseDto> {
+    if (userRole !== Role.ADMIN) {
+      throw new ForbiddenException('Only admins can create financial entries');
+    }
+
     const {
       type,
       amount,
       description,
-      taskId,
-      timestamp,
+      source,
+      paymentMethod,
       userId: targetUserId,
+      timestamp,
     } = createDto;
 
-    // Determine which user this transaction belongs to
-    let transactionUserId = userId;
-
-    // Only admins can create transactions for other users
-    if (targetUserId && targetUserId !== userId) {
-      if (userRole !== Role.ADMIN) {
-        throw new ForbiddenException(
-          'Only admins can create transactions for other users',
-        );
-      }
-      transactionUserId = targetUserId;
+    if (type !== 'INCOME') {
+      throw new BadRequestException('Only income transactions are supported');
     }
 
-    // Verify user exists
+    const transactionUserId = targetUserId || userId;
+
     const user = await this.prisma.user.findUnique({
       where: { id: transactionUserId },
     });
@@ -72,31 +66,22 @@ export class FinancialService {
       throw new NotFoundException('User not found');
     }
 
-    // Verify task exists if provided
-    if (taskId) {
-      const task = await this.prisma.task.findUnique({
-        where: { id: taskId },
-      });
-      if (!task) {
-        throw new NotFoundException('Task not found');
-      }
-    }
+    // Store timestamp as YYYY-MM-DD string
+    const dateStr = timestamp || new Date().toISOString().split('T')[0];
 
     const transaction = await this.prisma.transaction.create({
       data: {
         userId: transactionUserId,
-        type,
+        type: 'INCOME',
         amount,
         description,
-        taskId,
-        timestamp: timestamp ? new Date(timestamp) : new Date(),
+        source,
+        paymentMethod,
+        timestamp: dateStr,
       },
       include: {
         user: {
           select: { name: true },
-        },
-        task: {
-          select: { title: true },
         },
       },
     });
@@ -109,21 +94,19 @@ export class FinancialService {
     userRole: Role,
     dateRange?: DateRangeDto,
   ): Promise<TransactionResponseDto[]> {
-    const where: Prisma.TransactionWhereInput = {};
+    const where: Prisma.TransactionWhereInput = { type: 'INCOME' };
 
-    // Filter by user
     if (userRole !== Role.ADMIN) {
       where.userId = userId;
     }
 
-    // Filter by date range
     if (dateRange) {
       where.timestamp = {};
       if (dateRange.startDate) {
-        where.timestamp.gte = new Date(dateRange.startDate);
+        where.timestamp.gte = dateRange.startDate;
       }
       if (dateRange.endDate) {
-        where.timestamp.lte = new Date(dateRange.endDate);
+        where.timestamp.lte = dateRange.endDate;
       }
     }
 
@@ -133,9 +116,6 @@ export class FinancialService {
         user: {
           select: { name: true },
         },
-        task: {
-          select: { title: true },
-        },
       },
       orderBy: { timestamp: 'desc' },
     });
@@ -144,7 +124,6 @@ export class FinancialService {
       this.toResponseDto(t),
     );
   }
-
   async findOne(
     id: string,
     userId: string,
@@ -153,12 +132,7 @@ export class FinancialService {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
       include: {
-        user: {
-          select: { name: true },
-        },
-        task: {
-          select: { title: true },
-        },
+        user: { select: { name: true } },
       },
     });
 
@@ -166,7 +140,6 @@ export class FinancialService {
       throw new NotFoundException('Transaction not found');
     }
 
-    // Check access
     if (userRole !== Role.ADMIN && transaction.userId !== userId) {
       throw new ForbiddenException('You can only view your own transactions');
     }
@@ -180,6 +153,10 @@ export class FinancialService {
     userRole: Role,
     updateDto: UpdateTransactionDto,
   ): Promise<TransactionResponseDto> {
+    if (userRole !== Role.ADMIN) {
+      throw new ForbiddenException('Only admins can update transactions');
+    }
+
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
     });
@@ -188,39 +165,19 @@ export class FinancialService {
       throw new NotFoundException('Transaction not found');
     }
 
-    // Only admins can update transactions
-    if (userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only admins can update transactions');
-    }
-
-    // Verify task exists if updating taskId
-    if (updateDto.taskId) {
-      const task = await this.prisma.task.findUnique({
-        where: { id: updateDto.taskId },
-      });
-      if (!task) {
-        throw new NotFoundException('Task not found');
-      }
-    }
-
     const updateData: Prisma.TransactionUpdateInput = {};
-    if (updateDto.type !== undefined) updateData.type = updateDto.type;
     if (updateDto.amount !== undefined) updateData.amount = updateDto.amount;
     if (updateDto.description !== undefined)
       updateData.description = updateDto.description;
-    if (updateDto.taskId !== undefined)
-      updateData.task = { connect: { id: updateDto.taskId } };
+    if (updateDto.source !== undefined) updateData.source = updateDto.source;
+    if (updateDto.paymentMethod !== undefined)
+      updateData.paymentMethod = updateDto.paymentMethod;
 
     const updatedTransaction = await this.prisma.transaction.update({
       where: { id },
       data: updateData,
       include: {
-        user: {
-          select: { name: true },
-        },
-        task: {
-          select: { title: true },
-        },
+        user: { select: { name: true } },
       },
     });
 
@@ -240,145 +197,31 @@ export class FinancialService {
       throw new NotFoundException('Transaction not found');
     }
 
-    await this.prisma.transaction.delete({
-      where: { id },
-    });
+    await this.prisma.transaction.delete({ where: { id } });
   }
 
   async getUserSummary(
     userId: string,
     dateRange?: DateRangeDto,
   ): Promise<FinancialSummaryDto> {
-    const where: Prisma.TransactionWhereInput = { userId };
+    const where: Prisma.TransactionWhereInput = {
+      userId,
+      type: 'INCOME',
+    };
 
     if (dateRange) {
       where.timestamp = {};
-      if (dateRange.startDate)
-        where.timestamp.gte = new Date(dateRange.startDate);
-      if (dateRange.endDate) where.timestamp.lte = new Date(dateRange.endDate);
+      if (dateRange.startDate) where.timestamp.gte = dateRange.startDate;
+      if (dateRange.endDate) where.timestamp.lte = dateRange.endDate;
     }
 
     const transactions = await this.prisma.transaction.findMany({
       where,
     });
 
-    const totalIncome = transactions
-      .filter((t) => t.type === TransactionType.INCOME)
-      .reduce((sum, t) => sum + t.amount, 0);
+    const totalIncome = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-    const totalExpense = transactions
-      .filter((t) => t.type === TransactionType.EXPENSE)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    return {
-      totalIncome,
-      totalExpense,
-      netBalance: totalIncome - totalExpense,
-    };
-  }
-
-  async getAllUsersSummary(
-    userRole: Role,
-    dateRange?: DateRangeDto,
-  ): Promise<UserFinancialSummaryDto[]> {
-    if (userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only admins can view all users summary');
-    }
-
-    const users = await this.prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-
-    const summaries: UserFinancialSummaryDto[] = [];
-
-    for (const user of users) {
-      const where: Prisma.TransactionWhereInput = { userId: user.id };
-
-      if (dateRange) {
-        where.timestamp = {};
-        if (dateRange.startDate)
-          where.timestamp.gte = new Date(dateRange.startDate);
-        if (dateRange.endDate)
-          where.timestamp.lte = new Date(dateRange.endDate);
-      }
-
-      const transactions = await this.prisma.transaction.findMany({
-        where,
-      });
-
-      const income = transactions
-        .filter((t) => t.type === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const expense = transactions
-        .filter((t) => t.type === TransactionType.EXPENSE)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      summaries.push({
-        userId: user.id,
-        userName: user.name,
-        income,
-        expense,
-        net: income - expense,
-      });
-    }
-
-    return summaries;
-  }
-
-  async getMonthlyTrends(
-    userId: string,
-    userRole: Role,
-    year: number,
-  ): Promise<MonthlyTrendDto[]> {
-    const where: Prisma.TransactionWhereInput = {};
-
-    if (userRole !== Role.ADMIN) {
-      where.userId = userId;
-    }
-
-    // Set date range for the entire year
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59);
-
-    where.timestamp = {
-      gte: startDate,
-      lte: endDate,
-    };
-
-    const transactions = await this.prisma.transaction.findMany({
-      where,
-    });
-
-    // Initialize monthly data
-    const monthlyData: MonthlyTrendDto[] = [];
-    for (let i = 0; i < 12; i++) {
-      monthlyData.push({
-        month: new Date(year, i, 1).toLocaleString('default', {
-          month: 'short',
-        }),
-        income: 0,
-        expense: 0,
-        net: 0,
-      });
-    }
-
-    // Aggregate by month
-    transactions.forEach((t) => {
-      const month = new Date(t.timestamp).getMonth();
-      if (t.type === TransactionType.INCOME) {
-        monthlyData[month].income += t.amount;
-      } else {
-        monthlyData[month].expense += t.amount;
-      }
-      monthlyData[month].net =
-        monthlyData[month].income - monthlyData[month].expense;
-    });
-
-    return monthlyData;
+    return { totalIncome };
   }
 
   private toResponseDto(t: TransactionWithDetails): TransactionResponseDto {
@@ -389,9 +232,9 @@ export class FinancialService {
       type: t.type,
       amount: t.amount,
       description: t.description,
-      taskId: t.taskId || undefined,
-      taskTitle: t.task?.title,
-      timestamp: t.timestamp,
+      source: t.source || undefined,
+      paymentMethod: t.paymentMethod || undefined,
+      timestamp: t.timestamp, // Already a string
     };
   }
 }
