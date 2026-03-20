@@ -5,16 +5,9 @@ import {
   DashboardFilterDto,
   DashboardSummaryDto,
   MemberPerformanceDto,
-  TrendPoint,
-  MonthlyTrendPoint,
   ActivityDto,
 } from './dto/dashboard.dto';
-import {
-  Role,
-  ReportStatus,
-  TaskStatus,
-  TransactionType,
-} from '@prisma/client';
+import { Role, ReportStatus, TaskStatus } from '@prisma/client';
 import { TimeService } from '../../common/services/time.service';
 
 @Injectable()
@@ -24,15 +17,6 @@ export class DashboardService {
     private timeService: TimeService,
   ) {}
 
-  private getWeekStringFromDateStr(dateStr: string): string {
-    const date = new Date(dateStr + 'T12:00:00Z');
-    const firstDay = new Date(date);
-    firstDay.setUTCDate(date.getUTCDate() - date.getUTCDay());
-    const lastDay = new Date(firstDay);
-    lastDay.setUTCDate(firstDay.getUTCDate() + 6);
-
-    return `${this.timeService.formatDate(firstDay)} - ${this.timeService.formatDate(lastDay)}`;
-  }
   async getDashboardSummary(
     userId: string,
     userRole: Role,
@@ -47,22 +31,23 @@ export class DashboardService {
       ? new Date(filter.startDate)
       : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+    const startDateStr = this.timeService.formatDate(startDate);
+    const endDateStr = this.timeService.formatDate(endDate);
+
     // Get overview stats
     const overview = await this.getOverviewStats(
       userId,
       userRole,
-      startDate,
-      endDate,
+      startDateStr,
+      endDateStr,
     );
 
-    // Get trends
-    const trends = await this.getTrends(userId, userRole, startDate, endDate);
-
-    // Get top performers (admin only)
-    const topPerformers =
-      userRole === Role.ADMIN
-        ? await this.getTopPerformers(startDate, endDate)
-        : [];
+    // Get member performance (income and task count)
+    const memberPerformance = await this.getMemberPerformance(
+      userRole,
+      startDateStr,
+      endDateStr,
+    );
 
     // Get recent activities
     const recentActivities = await this.getRecentActivities(
@@ -74,8 +59,7 @@ export class DashboardService {
 
     return {
       overview,
-      trends,
-      topPerformers,
+      memberPerformance,
       recentActivities,
     };
   }
@@ -83,23 +67,17 @@ export class DashboardService {
   private async getOverviewStats(
     userId: string,
     userRole: Role,
-    startDate: Date,
-    endDate: Date,
+    startDateStr: string,
+    endDateStr: string,
   ) {
-    // Base filters
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
 
-    // Convert dates to strings for string comparison
-    const startDateStr = this.timeService.formatDate(startDate);
-    const endDateStr = this.timeService.formatDate(endDate);
-
-    // Parallel queries for performance
     const [
       totalMembers,
       activeMembers,
       pendingReports,
-      activeTasks,
-      financials,
+      totalIncome,
+      totalTasks,
     ] = await Promise.all([
       // Total members (admin only)
       userRole === Role.ADMIN
@@ -113,323 +91,97 @@ export class DashboardService {
           })
         : Promise.resolve(0),
 
-      // Pending reports - using string comparison
+      // Pending reports
       this.prisma.report.count({
         where: {
           ...userFilter,
           status: ReportStatus.PENDING,
-          date: {
-            gte: startDateStr, // Compare strings
-            lte: endDateStr, // "2026-03-19" >= "2026-03-01" works!
-          },
+          date: { gte: startDateStr, lte: endDateStr },
         },
       }),
 
-      // Active tasks (in progress)
+      // Total income from transactions
+      this.prisma.transaction.aggregate({
+        where: {
+          ...(userRole === Role.ADMIN ? {} : { userId }),
+          type: 'INCOME',
+          timestamp: { gte: startDateStr, lte: endDateStr },
+        },
+        _sum: { amount: true },
+      }),
+
+      // Total completed tasks
       this.prisma.task.count({
         where: {
-          ...userFilter,
-          status: { in: [TaskStatus.IN_PROGRESS, TaskStatus.REVIEW] },
+          ...(userRole === Role.ADMIN
+            ? {}
+            : {
+                OR: [{ assigneeId: userId }, { creatorId: userId }],
+              }),
+          status: TaskStatus.COMPLETED,
+          createdAt: { gte: new Date(startDateStr), lte: new Date(endDateStr) },
         },
       }),
-
-      // Financial summary
-      this.getFinancialSummary(userId, userRole, startDate, endDate),
     ]);
 
     return {
+      totalIncome: totalIncome._sum.amount || 0,
+      totalTasks,
       totalMembers,
       activeMembers,
       pendingReports,
-      activeTasks,
-      totalEarnings: financials.income,
-      totalExpenses: 0, // No expenses
-      netBalance: financials.net,
-      totalHours: 0,
     };
   }
 
-  private async getFinancialSummary(
-    userId: string,
+  private async getMemberPerformance(
     userRole: Role,
-    startDate: Date,
-    endDate: Date,
-  ) {
-    const userFilter = userRole === Role.ADMIN ? {} : { userId };
-
-    // Convert dates to strings for comparison
-    const startDateStr = this.timeService.formatDate(startDate);
-    const endDateStr = this.timeService.formatDate(endDate);
-
-    const transactions = await this.prisma.transaction.findMany({
-      where: {
-        ...userFilter,
-        type: 'INCOME',
-        timestamp: {
-          gte: startDateStr,
-          lte: endDateStr,
-        },
-      },
-    });
-
-    const income = transactions.reduce((sum, t) => sum + t.amount, 0);
-
-    return { income, expenses: 0, net: income };
-  }
-
-  private async getTrends(
-    userId: string,
-    userRole: Role,
-    startDate: Date,
-    endDate: Date,
-  ) {
-    const userFilter = userRole === Role.ADMIN ? {} : { userId };
-
-    // Get all data for the period
-    const [reports, tasks, transactions] = await Promise.all([
-      this.prisma.report.findMany({
-        where: {
-          ...userFilter,
-          submittedAt: { gte: startDate, lte: endDate },
-        },
-        select: { submittedAt: true },
-      }),
-      this.prisma.task.findMany({
-        where: {
-          ...userFilter,
-          createdAt: { gte: startDate, lte: endDate },
-        },
-        select: { createdAt: true, status: true },
-      }),
-      this.prisma.transaction.findMany({
-        where: {
-          ...userFilter,
-          timestamp: {
-            gte: this.timeService.formatDate(startDate),
-            lte: this.timeService.formatDate(endDate),
-          },
-        },
-        select: { timestamp: true, amount: true, type: true },
-      }),
-    ]);
-
-    // Generate daily trends
-    const dailyMap = new Map<string, TrendPoint>();
-    const weeklyMap = new Map<string, TrendPoint>();
-    const monthlyMap = new Map<string, MonthlyTrendPoint>();
-
-    // Initialize date range
-    const currentDate = new Date(startDate);
-    const endDateTime = new Date(endDate);
-
-    endDateTime.setUTCHours(23, 59, 59, 999); // Include the entire end day
-
-    while (currentDate <= endDateTime) {
-      const dateStr = this.timeService.formatDate(currentDate);
-      const weekStr = this.getWeekString(currentDate);
-      const monthStr = currentDate.toLocaleString('default', {
-        month: 'short',
-        year: 'numeric',
-      });
-
-      dailyMap.set(dateStr, {
-        date: dateStr,
-        reports: 0,
-        tasks: 0,
-        income: 0, // hours removed
-      });
-      weeklyMap.set(weekStr, {
-        date: weekStr,
-        reports: 0,
-        tasks: 0,
-        income: 0, // hours removed
-      });
-
-      if (!monthlyMap.has(monthStr)) {
-        monthlyMap.set(monthStr, {
-          month: monthStr,
-          reports: 0,
-          tasks: 0,
-          income: 0,
-          net: 0,
-        });
-      }
-
-      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+    startDateStr: string,
+    endDateStr: string,
+  ): Promise<MemberPerformanceDto[]> {
+    // Only admins see member performance
+    if (userRole !== Role.ADMIN) {
+      return [];
     }
 
-    // Aggregate reports
-    reports.forEach((r) => {
-      const dateStr = this.timeService.formatDate(r.submittedAt);
-      const weekStr = this.getWeekString(r.submittedAt);
-      const monthStr = r.submittedAt.toLocaleString('default', {
-        month: 'short',
-        year: 'numeric',
-      });
-
-      dailyMap.get(dateStr)!.reports++;
-      weeklyMap.get(weekStr)!.reports++;
-      monthlyMap.get(monthStr)!.reports++;
-    });
-
-    // Aggregate tasks
-    tasks.forEach((t) => {
-      const dateStr = this.timeService.formatDate(t.createdAt);
-      const weekStr = this.getWeekString(t.createdAt);
-      const monthStr = t.createdAt.toLocaleString('default', {
-        month: 'short',
-        year: 'numeric',
-      });
-
-      dailyMap.get(dateStr)!.tasks++;
-      weeklyMap.get(weekStr)!.tasks++;
-      monthlyMap.get(monthStr)!.tasks++;
-    });
-
-    // Aggregate transactions
-    transactions.forEach((t) => {
-      const timestamp = t.timestamp as string;
-      const dateStr = timestamp;
-      const weekStr = this.getWeekStringFromDateStr(timestamp);
-      const monthStr = new Date(timestamp + 'T12:00:00Z').toLocaleString(
-        'default',
-        {
-          month: 'short',
-          year: 'numeric',
-          timeZone: 'UTC',
-        },
-      );
-
-      if (t.type === TransactionType.INCOME) {
-        const dailyPoint = dailyMap.get(dateStr);
-        if (dailyPoint) {
-          dailyPoint.income += t.amount;
-        } else {
-          console.log(`Date not found in dailyMap: ${dateStr}`);
-        }
-        weeklyMap.get(weekStr)!.income += t.amount;
-        monthlyMap.get(monthStr)!.income += t.amount;
-        monthlyMap.get(monthStr)!.net += t.amount;
-      }
-    });
-
-    return {
-      daily: Array.from(dailyMap.values()).sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
-      weekly: Array.from(weeklyMap.values()).sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
-      monthly: Array.from(monthlyMap.values()),
-    };
-  }
-
-  private async getTopPerformers(
-    startDate: Date,
-    endDate: Date,
-  ): Promise<MemberPerformanceDto[]> {
     const members = await this.prisma.user.findMany({
       where: { role: Role.MEMBER, isActive: true },
       select: { id: true, name: true },
     });
 
-    const performers: MemberPerformanceDto[] = [];
+    const performance: MemberPerformanceDto[] = [];
 
     for (const member of members) {
-      // Get reports stats
-      const reports = await this.prisma.report.findMany({
-        where: {
-          userId: member.id,
-          submittedAt: { gte: startDate, lte: endDate },
-        },
-      });
-
-      const reportsSubmitted = reports.length;
-      const reportsApproved = reports.filter(
-        (r) => r.status === ReportStatus.APPROVED,
-      ).length;
-      const reportsRejected = reports.filter(
-        (r) => r.status === ReportStatus.REJECTED,
-      ).length;
-      const reportsPending = reports.filter(
-        (r) => r.status === ReportStatus.PENDING,
-      ).length;
-
-      // Get tasks stats
-      const tasks = await this.prisma.task.findMany({
-        where: {
-          OR: [{ assigneeId: member.id }, { creatorId: member.id }],
-          createdAt: { gte: startDate, lte: endDate },
-        },
-      });
-
-      const tasksAssigned = tasks.filter(
-        (t) => t.assigneeId === member.id,
-      ).length;
-      const tasksCompleted = tasks.filter(
-        (t) => t.status === TaskStatus.COMPLETED,
-      ).length;
-      const tasksInProgress = tasks.filter(
-        (t) => t.status === TaskStatus.IN_PROGRESS,
-      ).length;
-
-      const totalHours = 0;
-      const daysInPeriod = Math.ceil(
-        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
-      );
-      const averageDaily = totalHours / daysInPeriod;
-
-      // Get financial stats
-      const transactions = await this.prisma.transaction.findMany({
-        where: {
-          userId: member.id,
-          timestamp: {
-            gte: this.timeService.formatDate(startDate),
-            lte: this.timeService.formatDate(endDate),
+      const [income, taskCount] = await Promise.all([
+        this.prisma.transaction.aggregate({
+          where: {
+            userId: member.id,
+            type: 'INCOME',
+            timestamp: { gte: startDateStr, lte: endDateStr },
           },
-        },
-      });
+          _sum: { amount: true },
+        }),
+        this.prisma.task.count({
+          where: {
+            OR: [{ assigneeId: member.id }, { creatorId: member.id }],
+            status: TaskStatus.COMPLETED,
+            createdAt: {
+              gte: new Date(startDateStr),
+              lte: new Date(endDateStr),
+            },
+          },
+        }),
+      ]);
 
-      const earned = transactions
-        .filter((t) => t.type === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      performers.push({
+      performance.push({
         userId: member.id,
         userName: member.name,
-        reports: {
-          submitted: reportsSubmitted,
-          approved: reportsApproved,
-          pending: reportsPending,
-          rejected: reportsRejected,
-          approvalRate: reportsSubmitted
-            ? (reportsApproved / reportsSubmitted) * 100
-            : 0,
-        },
-        tasks: {
-          assigned: tasksAssigned,
-          completed: tasksCompleted,
-          inProgress: tasksInProgress,
-          completionRate: tasksAssigned
-            ? (tasksCompleted / tasksAssigned) * 100
-            : 0,
-        },
-        time: {
-          totalHours,
-          averageDaily,
-        },
-        financial: {
-          earned,
-          expenses: 0,
-          net: earned,
-        },
+        income: income._sum.amount || 0,
+        taskCount,
       });
     }
 
-    // Sort by net earnings and return top 5
-    return performers
-      .sort((a, b) => b.financial.net - a.financial.net)
-      .slice(0, 5);
+    // Sort by income descending
+    return performance.sort((a, b) => b.income - a.income);
   }
 
   private async getRecentActivities(
@@ -441,10 +193,10 @@ export class DashboardService {
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
     const activities: ActivityDto[] = [];
 
-    // Get recent reports
+    // Get recent reports (only from other users for admin)
     const reports = await this.prisma.report.findMany({
       where: {
-        ...userFilter,
+        ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
         submittedAt: { gte: startDate, lte: endDate },
       },
       include: { user: { select: { name: true } } },
@@ -465,15 +217,15 @@ export class DashboardService {
       });
     });
 
-    // Get recent tasks
     const tasks = await this.prisma.task.findMany({
       where: {
-        ...userFilter,
+        ...(userRole === Role.ADMIN
+          ? { NOT: { creatorId: userId } }
+          : { creatorId: userId }), // Members see their own tasks
         createdAt: { gte: startDate, lte: endDate },
       },
       include: {
         creator: { select: { name: true } },
-        assignee: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -492,10 +244,10 @@ export class DashboardService {
       });
     });
 
-    // Get recent blog posts
+    // Get recent blog posts (only from other users for admin)
     const blogs = await this.prisma.blogPost.findMany({
       where: {
-        ...userFilter,
+        ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
         publishedAt: { gte: startDate, lte: endDate },
       },
       include: { user: { select: { name: true } } },
@@ -520,14 +272,5 @@ export class DashboardService {
     return activities
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, 10);
-  }
-
-  private getWeekString(date: Date): string {
-    const firstDay = new Date(date);
-    firstDay.setDate(date.getDate() - date.getDay());
-    const lastDay = new Date(firstDay);
-    lastDay.setDate(firstDay.getDate() + 6);
-
-    return `${this.timeService.formatDate(firstDay)} - ${this.timeService.formatDate(lastDay)}`;
   }
 }

@@ -20,7 +20,7 @@ import toast from 'react-hot-toast';
 import { dashboardService } from '../services/dashboard.service';
 import { useAuthStore } from '../store/authStore';
 import StatsCards from '../components/dashboard/StatsCards';
-import TrendsChart from '../components/dashboard/TrendsChart';
+import MemberPerformanceChart from '../components/dashboard/MemberPerformanceChart';
 import RecentActivities from '../components/dashboard/RecentActivities';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { getDateRange } from '../utils/dateUtils';
@@ -29,7 +29,9 @@ import type { User } from '../types';
 
 const Dashboard = () => {
   const { user } = useAuthStore();
-  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>(getDateRange(30));
+  const [dateRange, setDateRange] = useState<{ startDate: string; endDate: string }>(
+    getDateRange(30)
+  );
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [members, setMembers] = useState<User[]>([]);
 
@@ -42,7 +44,7 @@ const Dashboard = () => {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['dashboard', dateRange, selectedUser],
-    queryFn: () => 
+    queryFn: () =>
       selectedUser && user?.role === 'ADMIN'
         ? dashboardService.getMemberDashboard(selectedUser, dateRange.startDate, dateRange.endDate)
         : dashboardService.getSummary(dateRange.startDate, dateRange.endDate),
@@ -56,6 +58,8 @@ const Dashboard = () => {
 
   if (isLoading) return <LoadingSpinner />;
 
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ mb: 3 }}>
@@ -66,7 +70,7 @@ const Dashboard = () => {
               value={new Date(dateRange.startDate)}
               onChange={(date: Date | null) => {
                 if (date) {
-                  setDateRange(prev => ({
+                  setDateRange((prev) => ({
                     ...prev,
                     startDate: date.toISOString().split('T')[0],
                   }));
@@ -78,7 +82,7 @@ const Dashboard = () => {
               value={new Date(dateRange.endDate)}
               onChange={(date: Date | null) => {
                 if (date) {
-                  setDateRange(prev => ({
+                  setDateRange((prev) => ({
                     ...prev,
                     endDate: date.toISOString().split('T')[0],
                   }));
@@ -87,20 +91,14 @@ const Dashboard = () => {
             />
           </LocalizationProvider>
 
-          <Button
-            variant="outlined"
-            onClick={() => setDateRange(getDateRange(7))}
-          >
+          <Button variant="outlined" onClick={() => setDateRange(getDateRange(7))}>
             Last 7 days
           </Button>
-          <Button
-            variant="outlined"
-            onClick={() => setDateRange(getDateRange(30))}
-          >
+          <Button variant="outlined" onClick={() => setDateRange(getDateRange(30))}>
             Last 30 days
           </Button>
 
-          {user?.role === 'ADMIN' && (
+          {isAdmin && (
             <FormControl sx={{ minWidth: 200 }}>
               <InputLabel>Select Member</InputLabel>
               <Select
@@ -109,8 +107,10 @@ const Dashboard = () => {
                 onChange={(e) => setSelectedUser(e.target.value)}
               >
                 <MenuItem value="">All Members</MenuItem>
-                {members.map(m => (
-                  <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                {members.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>
+                    {m.name}
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -125,23 +125,25 @@ const Dashboard = () => {
       {data && (
         <Grid container spacing={3}>
           <Grid size={{ xs: 12 }}>
-            <StatsCards 
-              overview={data.overview} 
-              isAdmin={user?.role === 'ADMIN' && !selectedUser}
-            />
+            <StatsCards overview={data.overview} isAdmin={isAdmin && !selectedUser} />
           </Grid>
 
-          <Grid size={{ xs: 12 }}>
-            <TrendsChart
-              daily={data.trends.daily}
-              weekly={data.trends.weekly}
-              monthly={data.trends.monthly}
-            />
-          </Grid>
+          {/* Member Performance Chart - Only show for admin with all members selected */}
+          {isAdmin &&
+            !selectedUser &&
+            data.memberPerformance &&
+            data.memberPerformance.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <MemberPerformanceChart data={data.memberPerformance} />
+              </Grid>
+            )}
 
-          <Grid size={{ xs: 12 }}>
-            <RecentActivities activities={data.recentActivities} />
-          </Grid>
+          {/* Recent Activities - Admin only */}
+          {isAdmin && (
+            <Grid size={{ xs: 12 }}>
+              <RecentActivities activities={data.recentActivities} />
+            </Grid>
+          )}
         </Grid>
       )}
     </Container>
