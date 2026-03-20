@@ -16,10 +16,11 @@ import {
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto, TaskFilterDto } from './dto/task.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role, TaskStatus } from '@prisma/client';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AllowAll } from 'src/common/decorators/allow-all.decorator';
 
 interface RequestWithUser extends Request {
   user: {
@@ -37,7 +38,9 @@ export class TasksController {
     private readonly prisma: PrismaService,
   ) {}
 
+  // Only admins can create tasks
   @Post()
+  @Roles(Role.ADMIN)
   async create(
     @Request() req: RequestWithUser,
     @Body() createTaskDto: CreateTaskDto,
@@ -53,6 +56,18 @@ export class TasksController {
     return this.tasksService.findAll(req.user.id, req.user.role, filter);
   }
 
+  @Get('unassigned/count')
+  @Roles(Role.ADMIN)
+  async getUnassignedCount() {
+    const count = await this.prisma.task.count({
+      where: {
+        assigneeId: null,
+        status: TaskStatus.CREATED,
+      },
+    });
+    return { count };
+  }
+
   @Get('dashboard/stats')
   async getDashboardStats(@Request() req: RequestWithUser) {
     return this.tasksService.getDashboardStats(req.user.id, req.user.role);
@@ -63,7 +78,9 @@ export class TasksController {
     return this.tasksService.findOne(id, req.user.id, req.user.role);
   }
 
+  // Only admins can update task details
   @Patch(':id')
+  @Roles(Role.ADMIN)
   async update(
     @Request() req: RequestWithUser,
     @Param('id') id: string,
@@ -77,7 +94,19 @@ export class TasksController {
     );
   }
 
+  // Members can update status (for drag-and-drop)
+  @Patch(':id/status')
+  updateStatus(
+    @Request() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body('status') status: TaskStatus,
+  ) {
+    return this.tasksService.updateStatus(id, req.user.id, status);
+  }
+
+  // Only admins can assign tasks
   @Patch(':id/assign')
+  @Roles(Role.ADMIN)
   async assign(
     @Request() req: RequestWithUser,
     @Param('id') id: string,
@@ -86,11 +115,13 @@ export class TasksController {
     return this.tasksService.assign(id, assigneeId, req.user.id, req.user.role);
   }
 
+  // Members can start their assigned tasks
   @Patch(':id/start')
   async startTask(@Request() req: RequestWithUser, @Param('id') id: string) {
     return this.tasksService.startTask(id, req.user.id);
   }
 
+  // Members can complete their assigned tasks
   @Patch(':id/complete')
   async completeTask(
     @Request() req: RequestWithUser,
@@ -102,8 +133,18 @@ export class TasksController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Roles(Role.ADMIN)
-  async remove(@Param('id') id: string) {
-    await this.prisma.task.delete({ where: { id } });
+  @AllowAll()
+  async remove(@Request() req: RequestWithUser, @Param('id') id: string) {
+    console.log('🗑️ DELETE request received');
+    console.log('🗑️ User:', { id: req.user.id, role: req.user.role });
+    console.log('🗑️ Task ID:', id);
+
+    try {
+      await this.tasksService.remove(id, req.user.id, req.user.role);
+      console.log('🗑️ Delete successful');
+    } catch (error) {
+      console.log('🗑️ Delete error:');
+      throw error;
+    }
   }
 }

@@ -1,7 +1,7 @@
 // backend/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet'; // Changed from * as helmet
 
 async function bootstrap() {
@@ -25,6 +25,10 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: (errors) => {
+        console.log('🔥 Validation errors:', JSON.stringify(errors, null, 2));
+        return new BadRequestException(errors);
+      },
     }),
   );
 

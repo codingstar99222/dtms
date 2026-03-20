@@ -19,7 +19,7 @@ export interface CreateTaskDto {
   client?: string;
   rate?: number;
   budget?: number;
-  deadline?: string; // YYYY-MM-DD string
+  deadline?: string;
 }
 
 export interface UpdateTaskDto {
@@ -32,15 +32,16 @@ export interface UpdateTaskDto {
   rate?: number;
   budget?: number;
   hoursWorked?: number;
-  deadline?: string; // YYYY-MM-DD string
+  deadline?: string;
 }
 
 export interface TaskFilterDto {
   status?: TaskStatus;
   assigneeId?: string;
   creatorId?: string;
-  fromDate?: string; // YYYY-MM-DD
-  toDate?: string; // YYYY-MM-DD
+  fromDate?: string;
+  toDate?: string;
+  unassigned?: boolean;
 }
 
 export interface DashboardStats {
@@ -49,6 +50,10 @@ export interface DashboardStats {
   inProgressTasks: number;
   completedTasks: number;
   overdueTasks: number;
+}
+
+export interface UnassignedCount {
+  count: number;
 }
 
 export const tasksService = {
@@ -65,6 +70,7 @@ export const tasksService = {
       if (filter.creatorId) params.append('creatorId', filter.creatorId);
       if (filter.fromDate) params.append('fromDate', filter.fromDate);
       if (filter.toDate) params.append('toDate', filter.toDate);
+      if (filter.unassigned) params.append('unassigned', 'true');
     }
 
     const response = await api.get<Task[]>(`/tasks?${params.toString()}`);
@@ -82,9 +88,7 @@ export const tasksService = {
   },
 
   async assign(id: string, assigneeId: string): Promise<Task> {
-    const response = await api.patch<Task>(`/tasks/${id}/assign`, {
-      assigneeId,
-    });
+    const response = await api.patch<Task>(`/tasks/${id}/assign`, { assigneeId });
     return response.data;
   },
 
@@ -94,14 +98,22 @@ export const tasksService = {
   },
 
   async completeTask(id: string, hoursWorked?: number): Promise<Task> {
-    const response = await api.patch<Task>(`/tasks/${id}/complete`, {
-      hoursWorked,
-    });
+    const response = await api.patch<Task>(`/tasks/${id}/complete`, { hoursWorked });
+    return response.data;
+  },
+
+  async updateStatus(id: string, status: string): Promise<Task> {
+    const response = await api.patch<Task>(`/tasks/${id}/status`, { status });
     return response.data;
   },
 
   async getDashboardStats(): Promise<DashboardStats> {
     const response = await api.get<DashboardStats>('/tasks/dashboard/stats');
+    return response.data;
+  },
+
+  async getUnassignedCount(): Promise<UnassignedCount> {
+    const response = await api.get<UnassignedCount>('/tasks/unassigned/count');
     return response.data;
   },
 

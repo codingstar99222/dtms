@@ -7,6 +7,7 @@ import {
   IsNumber,
   Min,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { TaskStatus, Priority } from '@prisma/client';
 
@@ -21,7 +22,7 @@ export class CreateTaskDto {
   @IsOptional()
   priority?: Priority;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
   assigneeId?: string;
 
@@ -109,11 +110,18 @@ export class TaskResponseDto {
   cancelledAt?: Date;
   deadline?: string;
 }
-
+export class TaskStatusDto {
+  @IsEnum(TaskStatus)
+  status: TaskStatus;
+}
 export class TaskFilterDto {
   @IsEnum(TaskStatus)
   @IsOptional()
   status?: TaskStatus;
+
+  @IsEnum(Priority)
+  @IsOptional()
+  priority?: Priority;
 
   @IsUUID()
   @IsOptional()
@@ -130,4 +138,8 @@ export class TaskFilterDto {
   @IsDateString()
   @IsOptional()
   toDate?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  unassigned?: boolean; // Add this for admin unassigned filter
 }

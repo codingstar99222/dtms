@@ -16,6 +16,16 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    // Check if route is marked as allowAll
+    const isAllowAll = this.reflector.getAllAndOverride<boolean>('allowAll', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isAllowAll) {
+      return true;
+    }
+
     const requiredRoles = this.reflector.getAllAndOverride<Role[]>('roles', [
       context.getHandler(),
       context.getClass(),
@@ -32,6 +42,8 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
-    return requiredRoles.includes(user.role);
+    const hasRole = requiredRoles.includes(user.role);
+
+    return hasRole;
   }
 }
