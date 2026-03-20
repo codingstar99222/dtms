@@ -50,12 +50,7 @@ export class DashboardService {
     );
 
     // Get recent activities
-    const recentActivities = await this.getRecentActivities(
-      userId,
-      userRole,
-      startDate,
-      endDate,
-    );
+    const recentActivities = await this.getRecentActivities(userId, userRole);
 
     return {
       overview,
@@ -216,21 +211,24 @@ export class DashboardService {
   private async getRecentActivities(
     userId: string,
     userRole: Role,
-    startDate: Date,
-    endDate: Date,
   ): Promise<ActivityDto[]> {
+    // Always use last 7 days from today, not the filtered date range
+    const now = this.timeService.now();
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
     const activities: ActivityDto[] = [];
 
-    // Get recent reports (admin sees others' reports, members see their own)
+    // Get recent reports (last 7 days)
     const reports = await this.prisma.report.findMany({
       where: {
         ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
-        submittedAt: { gte: startDate, lte: endDate },
+        submittedAt: { gte: sevenDaysAgo, lte: now },
       },
       include: { user: { select: { name: true } } },
       orderBy: { submittedAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     reports.forEach((r) => {
@@ -246,19 +244,19 @@ export class DashboardService {
       });
     });
 
-    // Get recent tasks (admin sees others' tasks, members see their own)
+    // Get recent tasks (last 7 days)
     const tasks = await this.prisma.task.findMany({
       where: {
         ...(userRole === Role.ADMIN
           ? { NOT: { creatorId: userId } }
           : { creatorId: userId }),
-        createdAt: { gte: startDate, lte: endDate },
+        createdAt: { gte: sevenDaysAgo, lte: now },
       },
       include: {
         creator: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     tasks.forEach((t) => {
@@ -274,15 +272,15 @@ export class DashboardService {
       });
     });
 
-    // Get recent blog posts (admin sees others' posts, members see their own)
+    // Get recent blog posts (last 7 days)
     const blogs = await this.prisma.blogPost.findMany({
       where: {
         ...(userRole === Role.ADMIN ? { NOT: { userId } } : userFilter),
-        publishedAt: { gte: startDate, lte: endDate },
+        publishedAt: { gte: sevenDaysAgo, lte: now },
       },
       include: { user: { select: { name: true } } },
       orderBy: { publishedAt: 'desc' },
-      take: 5,
+      take: 10,
     });
 
     blogs.forEach((b) => {
