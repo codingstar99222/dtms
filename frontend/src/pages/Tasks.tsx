@@ -43,6 +43,7 @@ const Tasks = () => {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [deleteTaskDialogOpen, setDeleteTaskDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const isAdmin = user?.role === 'ADMIN';
   const filterUnassigned = searchParams.get('filter') === 'unassigned';
@@ -52,7 +53,7 @@ const Tasks = () => {
     queryKey: ['tasks', 'unassigned', 'count'],
     queryFn: () => tasksService.getUnassignedCount(),
     enabled: isAdmin,
-    initialData: { count: 0 }, // Add default value
+    initialData: { count: 0 },
   });
 
   // Fetch tasks with role-based filtering
@@ -61,19 +62,19 @@ const Tasks = () => {
     isLoading,
     error,
   } = useQuery<Task[]>({
-    queryKey: ['tasks', filterUnassigned ? 'unassigned' : 'all'],
+    queryKey: ['tasks', filterUnassigned ? 'unassigned' : 'all', showArchived],
     queryFn: () =>
       tasksService.findAll({
         ...(filterUnassigned && { unassigned: true }),
+        ...(showArchived && { showArchived: true }),
       }),
   });
 
   // Fetch users for assignment
   const { data: users = [] } = useQuery({
-    queryKey: ['users', 'members'], // Add 'members' to query key
+    queryKey: ['users', 'members'],
     queryFn: async () => {
       const allUsers = await usersService.findAll();
-      // Filter to only include MEMBER role
       return allUsers.filter((user) => user.role === 'MEMBER');
     },
     enabled: isAdmin,
@@ -122,6 +123,18 @@ const Tasks = () => {
     },
     onError: (error: AxiosError<ErrorResponse>) => {
       toast.error(error.response?.data?.message || 'Failed to delete task');
+    },
+  });
+
+  // Archive task mutation
+  const archiveMutation = useMutation<Task, AxiosError<ErrorResponse>, string>({
+    mutationFn: (id: string) => tasksService.archive(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      toast.success('Task archived successfully');
+    },
+    onError: (error: AxiosError<ErrorResponse>) => {
+      toast.error(error.response?.data?.message || 'Failed to archive task');
     },
   });
 
@@ -225,16 +238,24 @@ const Tasks = () => {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
+    // Only admin can delete, or owner can delete non-completed non-archived tasks
     const canDelete =
-      isAdmin || (task.assigneeId === user?.id && ['COMPLETED', 'CANCELLED'].includes(task.status));
+      isAdmin ||
+      (task.assigneeId === user?.id &&
+        !task.isArchived &&
+        !['COMPLETED', 'CANCELLED'].includes(task.status));
 
     if (!canDelete) {
-      toast.error('You can only delete your own completed or cancelled tasks');
+      toast.error('You cannot delete this task');
       return;
     }
 
     setSelectedTask(task);
     setDeleteTaskDialogOpen(true);
+  };
+
+  const handleArchive = (task: Task) => {
+    archiveMutation.mutate(task.id);
   };
 
   const handleStatusChange = (taskId: string, newStatus: string) => {
@@ -339,6 +360,9 @@ const Tasks = () => {
           onDelete={handleDelete}
           onAssign={handleAssign}
           onView={handleView}
+          onArchive={handleArchive}
+          showArchived={showArchived}
+          onShowArchivedChange={setShowArchived}
           filterUnassigned={filterUnassigned}
         />
       ) : (
@@ -349,6 +373,7 @@ const Tasks = () => {
           onComplete={handleComplete}
           onView={handleView}
           onDelete={handleDelete}
+          onArchive={handleArchive}
         />
       )}
 

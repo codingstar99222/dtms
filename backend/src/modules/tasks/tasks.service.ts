@@ -32,6 +32,7 @@ interface TaskWithUsers {
   completedAt: Date | null;
   cancelledAt: Date | null;
   deadline: string | null;
+  isArchived: boolean;
   assignee: { name: string } | null;
   creator: { name: string };
 }
@@ -69,9 +70,7 @@ export class TasksService {
     } = createTaskDto;
 
     // Set initial status based on assignee
-    const initialStatus = assigneeId
-      ? TaskStatus.ASSIGNED // If assigned, go to ASSIGNED (hidden from board)
-      : TaskStatus.CREATED; // If unassigned, go to CREATED (visible on board)
+    const initialStatus = assigneeId ? TaskStatus.ASSIGNED : TaskStatus.CREATED;
 
     const task = await this.prisma.task.create({
       data: {
@@ -86,6 +85,7 @@ export class TasksService {
         deadline: deadline || null,
         status: initialStatus,
         createdAt: this.timeService.now(),
+        isArchived: false,
       },
       include: {
         assignee: { select: { name: true } },
@@ -101,37 +101,29 @@ export class TasksService {
     userRole: Role,
     filter?: TaskFilterDto,
   ): Promise<TaskResponseDto[]> {
-    const where: Prisma.TaskWhereInput = {};
+    const where: Prisma.TaskWhereInput = {
+      // By default, hide archived tasks unless requested
+      isArchived: filter?.showArchived ? undefined : false,
+    };
 
     // Role-based filtering
     if (userRole === Role.ADMIN) {
       // Admin sees all tasks
-      if (filter?.unassigned) {
-        where.assigneeId = null;
-        where.status = TaskStatus.CREATED;
-      }
+      if (filter?.assigneeId) where.assigneeId = filter.assigneeId;
+      if (filter?.creatorId) where.creatorId = filter.creatorId;
+      if (filter?.unassigned) where.assigneeId = null;
     } else {
-      // Members only see tasks assigned to them (excluding ASSIGNED status from board)
+      // Members only see tasks assigned to them
       where.assigneeId = userId;
-      // Don't filter by status - let the frontend decide what to show
     }
 
-    // Apply other filters
-    if (filter) {
-      if (filter.status) where.status = filter.status;
-      if (filter.priority) where.priority = filter.priority;
-      if (filter.assigneeId && userRole === Role.ADMIN) {
-        where.assigneeId = filter.assigneeId;
-      }
-      if (filter.creatorId && userRole === Role.ADMIN) {
-        where.creatorId = filter.creatorId;
-      }
-
-      if (filter.fromDate || filter.toDate) {
-        where.createdAt = {};
-        if (filter.fromDate) where.createdAt.gte = new Date(filter.fromDate);
-        if (filter.toDate) where.createdAt.lte = new Date(filter.toDate);
-      }
+    // Apply status filter
+    if (filter?.status) where.status = filter.status;
+    if (filter?.priority) where.priority = filter.priority;
+    if (filter?.fromDate || filter?.toDate) {
+      where.createdAt = {};
+      if (filter?.fromDate) where.createdAt.gte = new Date(filter.fromDate);
+      if (filter?.toDate) where.createdAt.lte = new Date(filter.toDate);
     }
 
     const tasks = await this.prisma.task.findMany({
@@ -276,7 +268,6 @@ export class TasksService {
       throw new NotFoundException('Assignee not found');
     }
 
-    // When assigning, move from CREATED to ASSIGNED
     const newStatus =
       task.status === TaskStatus.CREATED ? TaskStatus.ASSIGNED : task.status;
 
@@ -512,6 +503,7 @@ export class TasksService {
       );
     }
   }
+
   async remove(id: string, userId: string, userRole: Role): Promise<void> {
     const task = await this.prisma.task.findUnique({
       where: { id },
@@ -527,20 +519,60 @@ export class TasksService {
       return;
     }
 
-    // Task owner can delete their own completed or cancelled tasks
+    // Task owner can delete their own tasks that are not completed/cancelled and not archived
     if (
       task.assigneeId === userId &&
-      ['COMPLETED', 'CANCELLED'].includes(task.status)
+      !task.isArchived &&
+      !['COMPLETED', 'CANCELLED'].includes(task.status)
     ) {
       await this.prisma.task.delete({ where: { id } });
       return;
     }
 
-    // Otherwise, forbidden
     throw new ForbiddenException(
       'You do not have permission to delete this task',
     );
   }
+
+  async archive(
+    id: string,
+    userId: string,
+    userRole: Role,
+  ): Promise<TaskResponseDto> {
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // Only owner (assignee) or admin can archive
+    if (userRole !== Role.ADMIN && task.assigneeId !== userId) {
+      throw new ForbiddenException(
+        'Only the assignee or admin can archive tasks',
+      );
+    }
+
+    // Only completed or cancelled tasks can be archived
+    if (!['COMPLETED', 'CANCELLED'].includes(task.status)) {
+      throw new BadRequestException(
+        'Only completed or cancelled tasks can be archived',
+      );
+    }
+
+    const updatedTask = await this.prisma.task.update({
+      where: { id },
+      data: { isArchived: true },
+      include: {
+        assignee: { select: { name: true } },
+        creator: { select: { name: true } },
+      },
+    });
+
+    return this.toResponseDto(updatedTask as TaskWithUsers);
+  }
+
   private toResponseDto(task: TaskWithUsers): TaskResponseDto {
     return {
       id: task.id,
@@ -561,6 +593,7 @@ export class TasksService {
       completedAt: task.completedAt || undefined,
       cancelledAt: task.cancelledAt || undefined,
       deadline: task.deadline || undefined,
+      isArchived: task.isArchived,
     };
   }
 }

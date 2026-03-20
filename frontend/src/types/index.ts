@@ -35,7 +35,7 @@ export interface Report {
   id: string;
   userId: string;
   userName: string;
-  date: string; // Already YYYY-MM-DD string
+  date: string;
   content: string;
   status: ReportStatus;
   reason?: string;
@@ -73,7 +73,8 @@ export interface Task {
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
-  deadline?: string; // Now string (YYYY-MM-DD), not Date
+  deadline?: string;
+  isArchived?: boolean; // Add this field
 }
 
 // Blog
@@ -157,11 +158,18 @@ export interface Activity {
 }
 
 export interface DashboardSummary {
-  overview: DashboardOverview;
-  trends: {
-    daily: TrendPoint[];
-    weekly: TrendPoint[];
-    monthly: MonthlyTrend[];
+  overview: {
+    totalIncome: number;
+    totalTasks: number;
+    totalMembers: number;
+    activeMembers: number;
+    pendingReports: number;
   };
+  memberPerformance: Array<{
+    userId: string;
+    userName: string;
+    income: number;
+    taskCount: number;
+  }>;
   recentActivities: Activity[];
 }

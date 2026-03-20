@@ -42,6 +42,7 @@ export interface TaskFilterDto {
   fromDate?: string;
   toDate?: string;
   unassigned?: boolean;
+  showArchived?: boolean; // Add this for admin filter
 }
 
 export interface DashboardStats {
@@ -71,6 +72,7 @@ export const tasksService = {
       if (filter.fromDate) params.append('fromDate', filter.fromDate);
       if (filter.toDate) params.append('toDate', filter.toDate);
       if (filter.unassigned) params.append('unassigned', 'true');
+      if (filter.showArchived) params.append('showArchived', 'true');
     }
 
     const response = await api.get<Task[]>(`/tasks?${params.toString()}`);
@@ -104,6 +106,11 @@ export const tasksService = {
 
   async updateStatus(id: string, status: string): Promise<Task> {
     const response = await api.patch<Task>(`/tasks/${id}/status`, { status });
+    return response.data;
+  },
+
+  async archive(id: string): Promise<Task> {
+    const response = await api.patch<Task>(`/tasks/${id}/archive`);
     return response.data;
   },
 

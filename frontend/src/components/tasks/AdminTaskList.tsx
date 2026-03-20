@@ -31,6 +31,8 @@ import {
   Visibility as ViewIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
+import { Switch, FormControlLabel } from '@mui/material';
+import ArchiveIcon from '@mui/icons-material/Archive';
 import type { Task } from '../../types';
 import { formatDate } from '../../utils/formatters';
 
@@ -40,6 +42,9 @@ interface AdminTaskListProps {
   onDelete: (taskId: string) => void;
   onAssign: (task: Task) => void;
   onView: (task: Task) => void;
+  onArchive: (task: Task) => void;
+  showArchived: boolean;
+  onShowArchivedChange: (value: boolean) => void;
   filterUnassigned?: boolean;
 }
 
@@ -56,7 +61,7 @@ const getStatusColor = (status: string): StatusColor => {
     case 'REVIEW':
       return 'info';
     case 'ASSIGNED':
-      return 'secondary'; // Show ASSIGNED in admin list
+      return 'secondary';
     default:
       return 'default';
   }
@@ -75,7 +80,17 @@ const getPriorityColor = (priority: string): StatusColor => {
   }
 };
 
-const AdminTaskList = ({ tasks, onEdit, onDelete, onAssign, onView, filterUnassigned = false }: AdminTaskListProps) => {
+const AdminTaskList = ({
+  tasks,
+  onEdit,
+  onDelete,
+  onAssign,
+  onView,
+  onArchive,
+  showArchived,
+  onShowArchivedChange,
+  filterUnassigned = false,
+}: AdminTaskListProps) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
@@ -120,7 +135,7 @@ const AdminTaskList = ({ tasks, onEdit, onDelete, onAssign, onView, filterUnassi
   return (
     <Paper sx={{ width: '100%', overflow: 'hidden' }}>
       <Box sx={{ p: 2 }}>
-        <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap', gap: 2 }}>
           <TextField
             fullWidth
             placeholder="Search tasks..."
@@ -133,6 +148,7 @@ const AdminTaskList = ({ tasks, onEdit, onDelete, onAssign, onView, filterUnassi
                 </InputAdornment>
               ),
             }}
+            sx={{ flex: 1 }}
           />
           <FormControl sx={{ minWidth: 150 }}>
             <InputLabel>Status</InputLabel>
@@ -158,6 +174,15 @@ const AdminTaskList = ({ tasks, onEdit, onDelete, onAssign, onView, filterUnassi
               ))}
             </Select>
           </FormControl>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showArchived}
+                onChange={(e) => onShowArchivedChange(e.target.checked)}
+              />
+            }
+            label="Show Archived"
+          />
         </Stack>
       </Box>
 
@@ -229,21 +254,46 @@ const AdminTaskList = ({ tasks, onEdit, onDelete, onAssign, onView, filterUnassi
                           <ViewIcon />
                         </IconButton>
                       </Tooltip>
+
                       <Tooltip title="Edit">
                         <IconButton size="small" onClick={() => onEdit(task)} color="primary">
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Assign">
-                        <IconButton size="small" onClick={() => onAssign(task)} color="info">
-                          <AssignIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton size="small" onClick={() => onDelete(task.id)} color="error">
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
+
+                      {/* Only show assign button for unassigned tasks */}
+                      {!task.assigneeId && (
+                        <Tooltip title="Assign">
+                          <IconButton size="small" onClick={() => onAssign(task)} color="info">
+                            <AssignIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+
+                      {/* Delete only for non-archived, non-completed, non-cancelled tasks */}
+                      {!task.isArchived &&
+                        task.status !== 'COMPLETED' &&
+                        task.status !== 'CANCELLED' && (
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              onClick={() => onDelete(task.id)}
+                              color="error"
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+
+                      {/* Archive for completed or cancelled tasks */}
+                      {(task.status === 'COMPLETED' || task.status === 'CANCELLED') &&
+                        !task.isArchived && (
+                          <Tooltip title="Archive">
+                            <IconButton size="small" onClick={() => onArchive(task)}>
+                              <ArchiveIcon />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                     </Box>
                   </TableCell>
                 </TableRow>

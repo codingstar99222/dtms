@@ -2,67 +2,48 @@
 import { Grid, Paper, Typography, Box } from '@mui/material';
 import {
   TrendingUp as IncomeIcon,
-  TrendingDown as ExpenseIcon,
-  AccountBalance as BalanceIcon,
   Task as TasksIcon,
-  Timer as HoursIcon,
   People as MembersIcon,
   PendingActions as PendingIcon,
 } from '@mui/icons-material';
-import type { DashboardOverview } from '../../types';
-import { formatCurrency, formatHours } from '../../utils/formatters';
+import type { DashboardSummary } from '../../types';
+import { formatCurrency } from '../../utils/formatters';
 
 interface StatsCardsProps {
-  overview: DashboardOverview;
+  overview: DashboardSummary['overview'];
   isAdmin?: boolean;
 }
 
 const StatsCards = ({ overview, isAdmin }: StatsCardsProps) => {
   const stats = [
-    ...(isAdmin ? [
-      { 
-        title: 'Total Members', 
-        value: overview.totalMembers.toString(), 
-        icon: <MembersIcon />, 
-        color: '#1976d2',
-        subtext: `${overview.activeMembers} active`,
-      },
-    ] : []),
-    { 
-      title: 'Pending Reports', 
-      value: overview.pendingReports.toString(), 
-      icon: <PendingIcon />, 
+    ...(isAdmin
+      ? [
+          {
+            title: 'Total Members',
+            value: overview.totalMembers.toString(),
+            icon: <MembersIcon />,
+            color: '#1976d2',
+            subtext: `${overview.activeMembers} active`,
+          },
+        ]
+      : []),
+    {
+      title: 'Pending Reports',
+      value: overview.pendingReports.toString(),
+      icon: <PendingIcon />,
       color: '#ff9800',
     },
-    { 
-      title: 'Active Tasks', 
-      value: overview.activeTasks.toString(), 
-      icon: <TasksIcon />, 
+    {
+      title: 'Completed Tasks',
+      value: overview.totalTasks.toString(),
+      icon: <TasksIcon />,
       color: '#2196f3',
     },
-    { 
-      title: 'Total Hours', 
-      value: formatHours(overview.totalHours), 
-      icon: <HoursIcon />, 
+    {
+      title: 'Total Income',
+      value: formatCurrency(overview.totalIncome),
+      icon: <IncomeIcon />,
       color: '#4caf50',
-    },
-    { 
-      title: 'Income', 
-      value: formatCurrency(overview.totalEarnings), 
-      icon: <IncomeIcon />, 
-      color: '#4caf50',
-    },
-    { 
-      title: 'Expenses', 
-      value: formatCurrency(overview.totalExpenses), 
-      icon: <ExpenseIcon />, 
-      color: '#f44336',
-    },
-    { 
-      title: 'Net Balance', 
-      value: formatCurrency(overview.netBalance), 
-      icon: <BalanceIcon />, 
-      color: overview.netBalance >= 0 ? '#4caf50' : '#f44336',
     },
   ];
 

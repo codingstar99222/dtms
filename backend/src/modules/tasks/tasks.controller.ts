@@ -142,4 +142,9 @@ export class TasksController {
       throw error;
     }
   }
+
+  @Patch(':id/archive')
+  async archive(@Request() req: RequestWithUser, @Param('id') id: string) {
+    return this.tasksService.archive(id, req.user.id, req.user.role);
+  }
 }

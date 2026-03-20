@@ -80,12 +80,14 @@ model Task {
   startedAt   DateTime?
   completedAt DateTime?
   cancelledAt DateTime?
+  isArchived  Boolean       @default(false)
   deadline    String?
   
   @@index([assigneeId])
   @@index([status])
   @@index([creatorId])
   @@index([deadline])
+  @@index([isArchived])
 }
 
 model Transaction {
