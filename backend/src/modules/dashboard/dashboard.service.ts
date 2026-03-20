@@ -100,7 +100,6 @@ export class DashboardService {
       pendingReports,
       activeTasks,
       financials,
-      totalHours,
     ] = await Promise.all([
       // Total members (admin only)
       userRole === Role.ADMIN
@@ -136,16 +135,6 @@ export class DashboardService {
 
       // Financial summary
       this.getFinancialSummary(userId, userRole, startDate, endDate),
-
-      // Total hours logged
-      this.prisma.timeEntry.aggregate({
-        where: {
-          ...userFilter,
-          startTime: { gte: startDate, lte: endDate },
-          endTime: { not: null },
-        },
-        _sum: { duration: true },
-      }),
     ]);
 
     return {
@@ -156,7 +145,7 @@ export class DashboardService {
       totalEarnings: financials.income,
       totalExpenses: 0, // No expenses
       netBalance: financials.net,
-      totalHours: (totalHours._sum.duration || 0) / 60,
+      totalHours: 0,
     };
   }
 
@@ -197,7 +186,7 @@ export class DashboardService {
     const userFilter = userRole === Role.ADMIN ? {} : { userId };
 
     // Get all data for the period
-    const [reports, tasks, timeEntries, transactions] = await Promise.all([
+    const [reports, tasks, transactions] = await Promise.all([
       this.prisma.report.findMany({
         where: {
           ...userFilter,
@@ -211,14 +200,6 @@ export class DashboardService {
           createdAt: { gte: startDate, lte: endDate },
         },
         select: { createdAt: true, status: true },
-      }),
-      this.prisma.timeEntry.findMany({
-        where: {
-          ...userFilter,
-          startTime: { gte: startDate, lte: endDate },
-          endTime: { not: null },
-        },
-        select: { startTime: true, duration: true },
       }),
       this.prisma.transaction.findMany({
         where: {
@@ -239,7 +220,11 @@ export class DashboardService {
 
     // Initialize date range
     const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
+    const endDateTime = new Date(endDate);
+
+    endDateTime.setUTCHours(23, 59, 59, 999); // Include the entire end day
+
+    while (currentDate <= endDateTime) {
       const dateStr = this.timeService.formatDate(currentDate);
       const weekStr = this.getWeekString(currentDate);
       const monthStr = currentDate.toLocaleString('default', {
@@ -251,15 +236,13 @@ export class DashboardService {
         date: dateStr,
         reports: 0,
         tasks: 0,
-        hours: 0,
-        income: 0,
+        income: 0, // hours removed
       });
       weeklyMap.set(weekStr, {
         date: weekStr,
         reports: 0,
         tasks: 0,
-        hours: 0,
-        income: 0,
+        income: 0, // hours removed
       });
 
       if (!monthlyMap.has(monthStr)) {
@@ -267,14 +250,12 @@ export class DashboardService {
           month: monthStr,
           reports: 0,
           tasks: 0,
-          hours: 0,
           income: 0,
-          expenses: 0,
           net: 0,
         });
       }
 
-      currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setUTCDate(currentDate.getUTCDate() + 1);
     }
 
     // Aggregate reports
@@ -305,26 +286,11 @@ export class DashboardService {
       monthlyMap.get(monthStr)!.tasks++;
     });
 
-    // Aggregate time entries
-    timeEntries.forEach((te) => {
-      const dateStr = this.timeService.formatDate(te.startTime);
-      const weekStr = this.getWeekString(te.startTime);
-      const monthStr = te.startTime.toLocaleString('default', {
-        month: 'short',
-        year: 'numeric',
-      });
-      const hours = (te.duration || 0) / 60;
-
-      dailyMap.get(dateStr)!.hours += hours;
-      weeklyMap.get(weekStr)!.hours += hours;
-      monthlyMap.get(monthStr)!.hours += hours;
-    });
-
     // Aggregate transactions
     transactions.forEach((t) => {
       const timestamp = t.timestamp as string;
-      const dateStr = t.timestamp; // Already a string, no need to format
-      const weekStr = this.getWeekStringFromDateStr(t.timestamp);
+      const dateStr = timestamp;
+      const weekStr = this.getWeekStringFromDateStr(timestamp);
       const monthStr = new Date(timestamp + 'T12:00:00Z').toLocaleString(
         'default',
         {
@@ -335,12 +301,16 @@ export class DashboardService {
       );
 
       if (t.type === TransactionType.INCOME) {
-        dailyMap.get(dateStr)!.income += t.amount;
+        const dailyPoint = dailyMap.get(dateStr);
+        if (dailyPoint) {
+          dailyPoint.income += t.amount;
+        } else {
+          console.log(`Date not found in dailyMap: ${dateStr}`);
+        }
         weeklyMap.get(weekStr)!.income += t.amount;
         monthlyMap.get(monthStr)!.income += t.amount;
         monthlyMap.get(monthStr)!.net += t.amount;
       }
-      // Remove expense handling
     });
 
     return {
@@ -403,17 +373,7 @@ export class DashboardService {
         (t) => t.status === TaskStatus.IN_PROGRESS,
       ).length;
 
-      // Get time stats
-      const timeEntries = await this.prisma.timeEntry.aggregate({
-        where: {
-          userId: member.id,
-          startTime: { gte: startDate, lte: endDate },
-          endTime: { not: null },
-        },
-        _sum: { duration: true },
-      });
-
-      const totalHours = (timeEntries._sum.duration || 0) / 60;
+      const totalHours = 0;
       const daysInPeriod = Math.ceil(
         (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000),
       );
@@ -553,34 +513,6 @@ export class DashboardService {
         description: `Blog: ${b.title}`,
         timestamp: b.publishedAt,
         link: `/blog/${b.id}`,
-      });
-    });
-
-    // Get recent time entries
-    const timeEntries = await this.prisma.timeEntry.findMany({
-      where: {
-        ...userFilter,
-        startTime: { gte: startDate, lte: endDate },
-      },
-      include: {
-        user: { select: { name: true } },
-        task: { select: { title: true } },
-      },
-      orderBy: { startTime: 'desc' },
-      take: 5,
-    });
-
-    timeEntries.forEach((te) => {
-      activities.push({
-        id: `time-${te.id}`,
-        type: 'time',
-        action: 'logged',
-        userName: te.user.name,
-        userId: te.userId,
-        description: te.task
-          ? `${Math.round((te.duration || 0) / 60)}h on ${te.task.title}`
-          : `${Math.round((te.duration || 0) / 60)}h worked`,
-        timestamp: te.startTime,
       });
     });
 

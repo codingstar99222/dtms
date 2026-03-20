@@ -21,7 +21,6 @@ import Reports from './pages/Reports';
 import Tasks from './pages/Tasks';
 import Blog from './pages/Blog';
 import Financial from './pages/Financial';
-import TimeTracking from './pages/TimeTracking';
 import Profile from './pages/Profile';
 
 const queryClient = new QueryClient({
@@ -65,7 +64,6 @@ function App() {
                 <Route path="/tasks" element={<Tasks />} />
                 <Route path="/blog" element={<Blog />} />
                 <Route path="/financial" element={<Financial />} />
-                <Route path="/time-tracking" element={<TimeTracking />} />
                 <Route path="/profile" element={<Profile />} />
               </Route>
             </Route>

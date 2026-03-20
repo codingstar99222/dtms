@@ -20,7 +20,6 @@ import {
   Task as TaskIcon,
   Article as BlogIcon,
   AttachMoney as MoneyIcon,
-  Timer as TimerIcon,
 } from '@mui/icons-material';
 import { useAuthStore } from '../../store/authStore';
 import { useUIStore } from '../../store/uiStore';
@@ -34,7 +33,6 @@ const menuItems = [
   { text: 'Tasks', icon: <TaskIcon />, path: '/tasks', roles: ['ADMIN', 'MEMBER'] },
   { text: 'Blog', icon: <BlogIcon />, path: '/blog', roles: ['ADMIN', 'MEMBER'] },
   { text: 'Financial', icon: <MoneyIcon />, path: '/financial', roles: ['ADMIN', 'MEMBER'] },
-  { text: 'Time Tracking', icon: <TimerIcon />, path: '/time-tracking', roles: ['ADMIN', 'MEMBER'] },
 ];
 
 const Sidebar = () => {

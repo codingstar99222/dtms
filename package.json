@@ -1,7 +1,7 @@
 {
   "name": "dtms",
   "version": "1.0.0",
-  "description": "DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, time tracking, and knowledge sharing.",
+  "description": "DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, and knowledge sharing.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

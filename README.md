@@ -6,7 +6,7 @@
 
 ## 📄 Overview
 
-DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, time tracking, and knowledge sharing.
+DTMS (Developer Team Management System) is an internal management platform designed for small developer teams (6–20 members). It operates entirely within a Local Area Network (LAN), requiring no internet connectivity. The system centralizes task tracking, reporting, financial management, and knowledge sharing.
 
 ---
 
@@ -73,7 +73,6 @@ DTMS (Developer Team Management System) is an internal management platform desig
 - **User:** Authentication, profile, role (admin/member)
 - **Report:** Daily submissions with approval workflow
 - **Task:** Assignment, status tracking, financial attributes
-- **TimeEntry:** Time logs linked to users and tasks
 - **Transaction:** Income/expense records
 - **BlogPost:** Knowledge sharing with tags and metadata
 
@@ -81,7 +80,6 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 - Users ↔ Reports (one-to-many)
 - Users ↔ Tasks (creator and assignee roles)
-- Tasks ↔ TimeEntries
 - Users ↔ Transactions
 - Users ↔ BlogPosts
 
@@ -128,13 +126,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
   - Admins: Full control (create, edit, assign, delete any task)
   - Members: Start, review, complete, cancel own tasks; delete own completed/cancelled only
 - Unassigned tracking: Admin dashboard shows count of unassigned tasks
-- Time tracking: Hours logged when completing tasks
-
-### Time Tracking
-
-- Manual and live timer modes
-- Task association
-- Aggregated summaries and distribution
+- Hours worked: Hours logged when completing tasks
 
 ### Financial Tracking
 
@@ -173,7 +165,7 @@ DTMS (Developer Team Management System) is an internal management platform desig
 
 ### Dashboard
 
-- Aggregated metrics (tasks, reports, time, finances)
+- Aggregated metrics (tasks, reports, finances)
 - Trend charts (daily/weekly/monthly)
 - Recent activity feed
 
@@ -215,7 +207,7 @@ DTMS uses a **strict, timezone-safe approach** for all date/time operations:
 - **Display** by parsing the string directly (no timezone conversion)
 - **Comparisons** use string comparison (works because of YYYY-MM-DD format)
 
-### Timestamps (Time Tracking, Approvals, Audits)
+### Timestamps (Approvals, Audits)
 
 - **Stored as UTC** `DateTime` in database
 - **Generated** using `TimeService.now()` on the backend
