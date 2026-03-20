@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -39,7 +40,11 @@ export class BlogService {
     createDto: CreateBlogPostDto,
   ): Promise<BlogPostResponseDto> {
     const { title, content, category, tags, url, codeSnippet } = createDto;
-
+    if (category === 'RESOURCE' && !url) {
+      throw new BadRequestException(
+        'URL is required for RESOURCE category posts',
+      );
+    }
     const post = await this.prisma.blogPost.create({
       data: {
         userId,
@@ -143,6 +148,12 @@ export class BlogService {
       throw new ForbiddenException('You can only edit your own posts');
     }
 
+    const category = updateDto.category || post.category;
+    if (category === 'RESOURCE' && updateDto.url === '') {
+      throw new BadRequestException(
+        'URL cannot be empty for RESOURCE category posts',
+      );
+    }
     const updateData: Prisma.BlogPostUpdateInput = {};
 
     if (updateDto.title !== undefined) updateData.title = updateDto.title;

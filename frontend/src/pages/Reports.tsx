@@ -61,8 +61,6 @@ const Reports = () => {
     queryFn: () => reportsService.getMissingReports(),
     throwOnError: false, // This replaces onError
   });
-  console.log('Frontend - missingReports:', missingReports);
-  console.log('Frontend - missingReports length:', missingReports.length);
   // Create report mutation
   const createMutation = useMutation<Report, AxiosError<ErrorResponse>, CreateReportDto>({
     mutationFn: (data: CreateReportDto) => reportsService.create(data),
@@ -168,15 +166,11 @@ const Reports = () => {
   };
 
   const handleFormSubmit = async (data: ReportFormSubmitData) => {
-    console.log('📝 Reports.tsx received:', data);
-
     // data.date is already a string from ReportForm
     const reportData: CreateReportDto = {
       date: data.date, // already string
       content: data.content,
     };
-
-    console.log('📝 Sending to API:', reportData);
 
     if (selectedReport) {
       updateMutation.mutate({ id: selectedReport.id, data: reportData });

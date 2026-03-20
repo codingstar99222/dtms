@@ -1,5 +1,12 @@
 // backend/src/modules/blog/dto/blog.dto.ts
-import { IsString, IsEnum, IsOptional, IsArray, IsUrl } from 'class-validator';
+import {
+  IsString,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  IsUrl,
+  ValidateIf,
+} from 'class-validator';
 import { BlogCategory } from '@prisma/client';
 
 export class CreateBlogPostDto {
@@ -17,7 +24,8 @@ export class CreateBlogPostDto {
   @IsOptional()
   tags?: string[];
 
-  @IsUrl()
+  @ValidateIf((o: CreateBlogPostDto) => o.url !== undefined && o.url !== '')
+  @IsUrl({}, { message: 'Must be a valid URL' })
   @IsOptional()
   url?: string;
 
@@ -44,7 +52,8 @@ export class UpdateBlogPostDto {
   @IsOptional()
   tags?: string[];
 
-  @IsUrl()
+  @ValidateIf((o: UpdateBlogPostDto) => o.url !== undefined && o.url !== '')
+  @IsUrl({}, { message: 'Must be a valid URL' })
   @IsOptional()
   url?: string;
 

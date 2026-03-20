@@ -28,17 +28,14 @@ export const useAuthStore = create<AuthState>()(
         const { access_token, user } = response.data;
 
         localStorage.setItem('token', access_token);
-        localStorage.setItem('user', JSON.stringify(user))
+        localStorage.setItem('user', JSON.stringify(user));
         set({ user, token: access_token, isAuthenticated: true });
       },
 
       register: async (data: RegisterDto) => {
-        console.log('🔵 REGISTER ATTEMPT - Step 1: Function called');
-        console.log('🔵 Data being sent:', data);
         try {
           await api.post('/auth/register', data);
         } catch (error) {
-          console.log('🔴 Step 3: ERROR - Request failed');
           console.log('🔴 Error details:', error);
           throw error;
         }

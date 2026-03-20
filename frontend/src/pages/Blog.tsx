@@ -1,16 +1,7 @@
 // frontend/src/pages/Blog.tsx
 import { useState } from 'react';
-import {
-  Container,
-  Typography,
-  Button,
-  Box,
-  Alert,
-  Tabs,
-  Tab,
-  Stack,
-} from '@mui/material';
-import { Add as AddIcon, Whatshot as HotIcon } from '@mui/icons-material';
+import { Container, Typography, Button, Box, Alert, Tabs, Tab, Stack } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { blogService } from '../services/blog.service';
 import type { CreateBlogPostDto, UpdateBlogPostDto } from '../services/blog.service';
@@ -37,7 +28,7 @@ interface BlogFormData {
   codeSnippet?: string;
 }
 
-type TabValue = 'all' | 'popular' | 'my-posts';
+type TabValue = 'all' | 'my-posts';
 
 const Blog = () => {
   const { user } = useAuthStore();
@@ -49,12 +40,14 @@ const Blog = () => {
   const [tabValue, setTabValue] = useState<TabValue>('all');
 
   // Fetch posts based on tab
-  const { data: posts = [], isLoading, error } = useQuery<BlogPost[]>({
+  const {
+    data: posts = [],
+    isLoading,
+    error,
+  } = useQuery<BlogPost[]>({
     queryKey: ['blog', tabValue],
     queryFn: async () => {
       switch (tabValue) {
-        case 'popular':
-          return blogService.getPopularPosts(20);
         case 'my-posts':
           if (!user?.id) return [];
           return blogService.getUserPosts(user.id);
@@ -78,7 +71,11 @@ const Blog = () => {
   });
 
   // Update post mutation
-  const updateMutation = useMutation<BlogPost, AxiosError<ErrorResponse>, { id: string; data: UpdateBlogPostDto }>({
+  const updateMutation = useMutation<
+    BlogPost,
+    AxiosError<ErrorResponse>,
+    { id: string; data: UpdateBlogPostDto }
+  >({
     mutationFn: ({ id, data }: { id: string; data: UpdateBlogPostDto }) =>
       blogService.update(id, data),
     onSuccess: () => {
@@ -122,7 +119,7 @@ const Blog = () => {
   };
 
   const handleDelete = (postId: string) => {
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     if (post) {
       setSelectedPost(post);
       setDeleteDialogOpen(true);
@@ -158,13 +155,9 @@ const Blog = () => {
         <Typography variant="h4" component="h1">
           Knowledge Blog
         </Typography>
-        
+
         <Stack direction="row" spacing={2}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreate}
-          >
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
             Write Post
           </Button>
         </Stack>
@@ -173,7 +166,6 @@ const Blog = () => {
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, value) => setTabValue(value)}>
           <Tab label="All Posts" value="all" />
-          <Tab label="Popular" value="popular" icon={<HotIcon />} iconPosition="start" />
           {user && <Tab label="My Posts" value="my-posts" />}
         </Tabs>
       </Box>
@@ -184,25 +176,17 @@ const Blog = () => {
         </Alert>
       )}
 
-      <BlogList
-        posts={posts}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onView={handleView}
-      />
+      <BlogList posts={posts} onEdit={handleEdit} onDelete={handleDelete} onView={handleView} />
 
       <BlogForm
+        key={formOpen ? (selectedPost ? selectedPost.id : 'new') : 'closed'}
         open={formOpen}
         onClose={handleCloseDialogs}
         onSubmit={handleFormSubmit}
         post={selectedPost}
       />
 
-      <BlogViewDialog
-        open={viewDialogOpen}
-        onClose={handleCloseDialogs}
-        post={selectedPost}
-      />
+      <BlogViewDialog open={viewDialogOpen} onClose={handleCloseDialogs} post={selectedPost} />
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}
